@@ -8,6 +8,10 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.TilePane?>
 
+<!-- main view for the application -->
+
+<!-- TODO: jarvis tolong buatin view ini jadi lebih modern / dinamis dulu apa itu biar ga apa kali -->
+
 <BorderPane xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.scapes.controller.MainController"
