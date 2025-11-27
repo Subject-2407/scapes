@@ -9,5 +9,8 @@ module com.scapes {
     requires com.sun.jna.platform;
 
     opens com.scapes to javafx.fxml, com.google.gson;
+    opens com.scapes.model to com.google.gson;
+    opens com.scapes.controller to javafx.fxml;
+    
     exports com.scapes;
 }
