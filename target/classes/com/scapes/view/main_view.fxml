@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.TilePane?>
+
+<!-- main view for the application -->
+
+<!-- TODO: jarvis tolong buatin view ini jadi lebih modern / dinamis dulu apa itu biar ga apa kali -->
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.scapes.controller.MainController"
+            prefHeight="600.0" prefWidth="900.0">
+
+    <top>
+        <HBox spacing="10" style="-fx-background-color: #2b2b2b; -fx-padding: 15; -fx-alignment: CENTER_LEFT;">
+            
+            <ComboBox fx:id="providerCombo" prefWidth="150.0" promptText="Pilih Sumber"/>
+            
+            <TextField fx:id="searchField" promptText="Cari wallpaper (contoh: nature, neon)..." 
+                       HBox.hgrow="ALWAYS" style="-fx-font-size: 14px;"/>
+            
+            <Button text="Cari" onAction="#onSearchAction" 
+                    style="-fx-background-color: #0078d7; -fx-text-fill: white; -fx-font-weight: bold;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fx:id="scrollPane" fitToWidth="true" style="-fx-background-color: transparent;">
+            <content>
+                <TilePane fx:id="imageGrid" hgap="15" vgap="15" prefColumns="4" 
+                          style="-fx-padding: 20; -fx-background-color: #f4f4f4;">
+                    </TilePane>
+            </content>
+        </ScrollPane>
+    </center>
+
+</BorderPane>
