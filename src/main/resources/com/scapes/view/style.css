@@ -1,0 +1,141 @@
+/* --- GLOBAL CONFIG --- */
+.root {
+    /* HAPUS background-color hitam dari sini */
+    -fx-font-family: 'Segoe UI', sans-serif;
+}
+
+/* --- HEADER --- */
+.top-bar {
+    /* Hapus background color, biarkan Java yang atur */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 10, 0, 0, 5);
+}
+
+.app-title {
+    /* Hapus text-fill, biarkan Java yang atur */
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 0 10 0 0;
+}
+
+/* --- INPUTS --- */
+.combo-box-modern {
+    /* Hapus background & text fill */
+    -fx-background-radius: 8;
+    -fx-border-color: transparent; /* Border diatur Java */
+    -fx-border-radius: 8;
+}
+
+/* Hapus .combo-box-modern .cell yang mengatur warna teks */
+
+.search-field {
+    /* Hapus background & text fill */
+    -fx-background-radius: 8;
+    -fx-border-color: transparent; /* Border diatur Java */
+    -fx-border-radius: 8;
+    -fx-padding: 8 12 8 12;
+}
+
+.search-field:focused {
+    -fx-border-color: #0c6370; /* Highlight biru boleh tetap disini */
+}
+
+/* --- BUTTON --- */
+.btn-search {
+    /* Hapus background & text fill */
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-padding: 8 20 8 20;
+}
+
+.btn-search:hover {
+    -fx-background-color: #008eff; /* Hover effect boleh tetap */
+}
+
+/* --- CENTER AREA --- */
+.content-area {
+    /* Hapus background color */
+}
+
+/* PENTING: Hapus rule .label yang memaksa warna putih */
+/* .label { -fx-text-fill: white; }  <-- INI PENYEBAB LABEL TETAP PUTIH */
+
+/* --- SCROLL PANE & GRID --- */
+.scroll-pane, .scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.tile-pane {
+    -fx-background-color: transparent;
+}
+
+/* --- SCROLLBAR VERTIKAL MODERN (VERSI FINAL) --- */
+.scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8px;
+    -fx-padding: 0;
+}
+
+.scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 0;
+}
+
+.scroll-bar:vertical .thumb {
+    /* Mengambil warna dari Java Controller */
+    -fx-background-color: -fx-thumb-color;
+    -fx-background-radius: 10em;
+    -fx-background-insets: 1;
+}
+
+.scroll-bar:vertical .thumb:hover {
+    -fx-background-color: derive(-fx-thumb-color, -20%);
+}
+
+.scroll-bar:vertical .thumb:pressed {
+    -fx-background-color: #0c6370;
+}
+
+.scroll-bar .increment-button, 
+.scroll-bar .decrement-button {
+    -fx-visible: false;
+    -fx-padding: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+}
+
+/* Style TabPane agar menyatu dengan background */
+.custom-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.custom-tab-pane .tab {
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 3px;
+    -fx-background-color: transparent;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 5 20 7 20;
+    -fx-text-fill: -theme-tab-text;
+}
+
+.custom-tab-pane .tab:selected {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent #0c6370 transparent; /* Garis biru di bawah tab aktif */
+    -fx-border-width: 3px;
+    -fx-text-fill: -theme-tab-text-selected;
+}
+
+.custom-tab-pane .tab:hover {
+    -fx-background-color: -theme-tab-hover-bg;
+    -fx-cursor: hand;
+}
+
+.custom-tab-pane .tab-content-area .tab-header-background {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}

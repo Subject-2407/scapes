@@ -15,6 +15,7 @@ public class WallpaperImage {
         this.sourceName = sourceName;
     }
 
+    public String getId() { return id; }
     public String getImageUrl() { return imageUrl; }
     public String getThumbnailUrl() { return thumbnailUrl; }
     public String getDescription() { return description; }
