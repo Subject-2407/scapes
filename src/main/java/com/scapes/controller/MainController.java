@@ -498,20 +498,26 @@ public class MainController {
 
         double colWidth = getCurrentColWidth();
 
+        double targetHeight = 200; // Default jika data 0
+        if (data.getWidth() > 0 && data.getHeight() > 0) {
+            targetHeight = (data.getHeight() / data.getWidth()) * colWidth;
+        }
+
         ImageView imageView = new ImageView();
         imageView.setFitWidth(colWidth);
-        imageView.setPreserveRatio(true); // Default true agar aman
+        imageView.setFitHeight(targetHeight);
+        imageView.setPreserveRatio(false); // Default true agar aman
         imageView.setSmooth(true);
 
-        Rectangle clip = new Rectangle(colWidth, 10);
+        Rectangle clip = new Rectangle(colWidth, targetHeight);
         clip.setArcWidth(24); clip.setArcHeight(24);
         imageView.setClip(clip);
 
         // Panggil Loader yang sesuai
         if (isLocal) {
-            loadLocalImageAsync(data.getThumbnailUrl(), imageView, clip, colWidth);
+            loadLocalImageAsync(data.getThumbnailUrl(), imageView, colWidth);
         } else {
-            loadImageAsync(data.getThumbnailUrl(), imageView, clip);
+            loadImageAsync(data.getThumbnailUrl(), imageView);
         }
 
         Label descLabel = new Label(isLocal ? data.getId() : data.getDescription());
@@ -554,32 +560,31 @@ public class MainController {
         return card;
     }
 
-    // --- LOADERS ---
+    // --- THUMBNAIL LOADERS ---
 
-    private void loadImageAsync(String url, ImageView target, Rectangle clip) {
+    // Online Loader
+    private void loadImageAsync(String url, ImageView target) {
         CompletableFuture.runAsync(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", "Mozilla/5.0").GET().build();
                 HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
                 if (response.statusCode() == 200) {
                     Image image = new Image(response.body());
-                    Platform.runLater(() -> updateImageView(target, image, clip));
+                    Platform.runLater(() -> target.setImage(image));
                 }
-            } catch (Exception e) { logger.error("Error online load", e); }
+            } catch (Exception e) { logger.error("Error loading online thumbnail: ", e); }
         });
     }
 
-    private void loadLocalImageAsync(String url, ImageView target, Rectangle clip, double reqWidth) {
+    // Loader Local
+    private void loadLocalImageAsync(String url, ImageView target, double reqWidth) {
         CompletableFuture.runAsync(() -> {
             try {
                 double widthToLoad = (reqWidth > 0) ? reqWidth : 300;
-                // Resize saat loading untuk hemat RAM
                 Image image = new Image(url, widthToLoad, 0, true, false);
-                
                 if (image.isError()) return;
-
-                Platform.runLater(() -> updateImageView(target, image, clip));
-            } catch (Exception e) { logger.error("Error local load", e); }
+                Platform.runLater(() -> target.setImage(image));
+            } catch (Exception e) { logger.error("Error loading local thumbnail: ", e); }
         });
     }
 
