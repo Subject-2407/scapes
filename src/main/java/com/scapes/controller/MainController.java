@@ -2,6 +2,7 @@ package com.scapes.controller;
 
 import com.scapes.core.ProviderManager;
 import com.scapes.core.SystemHandler;
+import com.scapes.impl.SuggestionService;
 import com.scapes.model.WallpaperImage;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
@@ -57,7 +58,7 @@ public class MainController {
     @FXML private ScrollPane localScrollPane; // GANTI TilePane dengan ini di FXML!
 
     // --- State Variables ---
-    private boolean isDarkMode = true;
+    private boolean isDarkMode = isWindowsDarkMode();
 
     // --- Dependencies ---
     private ProviderManager providerManager;
@@ -95,6 +96,10 @@ public class MainController {
 
     private double storedX, storedY, storedWidth, storedHeight;
     private boolean isMaximized = false;
+
+    // Suggestion Service
+    private SuggestionService suggestionService = new SuggestionService();
+    private ContextMenu suggestionsPopup;
 
     // --- Pagination State ---
     private int currentPage = 1;
@@ -147,8 +152,83 @@ public class MainController {
             ensureMasonryColumns(localMasonryContainer, localMasonryColumns, localColumnHeights);
         });
 
+        // setup search suggestion
+        setupSearchSuggestions();
+
         // Window Controls
         setupWindowControls();
+    }
+
+    // search suggestion
+    private void setupSearchSuggestions() {
+        suggestionsPopup = new ContextMenu();
+
+        suggestionsPopup.setStyle(
+                "-fx-background-color: " + (isDarkMode ? "#1e1e1e" : "#ffffff") + ";" +
+                "-fx-text-fill: " + (isDarkMode ? "white" : "black") + ";" +
+                "-fx-background-radius: 0 0 8 8;" +
+                "-fx-border-color: " + (isDarkMode ? "#333333" : "#cccccc") + ";" +
+                "-fx-border-width: 0 1 1 1;" +
+                "-fx-border-radius: 0 0 8 8;" +
+                "-fx-width: 500px;"
+            );
+
+        // Listener saat mengetik
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null || newVal.trim().length() < 2) {
+                suggestionsPopup.hide();
+                return;
+            }
+
+            suggestionService.getRecommendations(newVal)
+                .thenAccept(suggestions -> {
+                    Platform.runLater(() -> {
+                        if (suggestions.isEmpty()) {
+                            suggestionsPopup.hide();
+                        } else {
+                            populateSuggestions(suggestions);
+
+                            double currentWidth = searchField.getWidth();
+                            
+                            suggestionsPopup.setMinWidth(currentWidth);
+                            suggestionsPopup.setPrefWidth(currentWidth);
+                            suggestionsPopup.setMaxWidth(currentWidth);
+                            if (!suggestionsPopup.isShowing()) {
+                                suggestionsPopup.show(searchField, javafx.geometry.Side.BOTTOM, 0, 0);
+                            }
+                        }
+                    });
+                });
+        });
+
+        searchField.widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (suggestionsPopup.isShowing()) {
+                suggestionsPopup.setMinWidth(newVal.doubleValue());
+                suggestionsPopup.setPrefWidth(newVal.doubleValue());
+                suggestionsPopup.setMaxWidth(newVal.doubleValue());
+            }
+        });
+    }
+
+    private void populateSuggestions(List<String> suggestions) {
+        suggestionsPopup.getItems().clear();
+
+        suggestionsPopup.getItems().add(new SeparatorMenuItem());
+
+        for (String suggestion : suggestions) {
+            MenuItem item = new MenuItem(suggestion);
+
+            String textColor = isDarkMode ? "white" : "black";
+            item.setStyle("-fx-text-fill: " + textColor + "; -fx-padding: 5 10;");
+
+            item.setOnAction(e -> {
+                searchField.setText(suggestion);
+                suggestionsPopup.hide();
+                onSearchAction();
+            });
+            
+            suggestionsPopup.getItems().add(item);
+        }
     }
 
     // pagination load next page
@@ -333,8 +413,15 @@ public class MainController {
 
     @FXML
     public void onSearchAction() {
+        if (suggestionsPopup != null && suggestionsPopup.isShowing()) {
+            suggestionsPopup.hide();
+        }
+
         String query = searchField.getText();
         if (query.isEmpty() || providerManager == null) return;
+
+
+        suggestionService.logSearch(query);
 
         mainTabPane.getSelectionModel().select(0);
 
@@ -828,6 +915,18 @@ public class MainController {
             "-fx-background-radius: 12 12 0 0;" 
         );
         topBar.setEffect(new DropShadow(5, Color.rgb(0,0,0, isDarkMode ? 0.5 : 0.1)));
+
+        if (suggestionsPopup != null) {
+            suggestionsPopup.setStyle(
+                "-fx-background-color: " + (isDarkMode ? "#1e1e1e" : "#ffffff") + ";" +
+                "-fx-text-fill: " + (isDarkMode ? "white" : "black") + ";" +
+                "-fx-background-radius: 0 0 8 8;" +
+                "-fx-border-color: " + (isDarkMode ? "#333333" : "#cccccc") + ";" +
+                "-fx-border-width: 0 1 1 1;" +
+                "-fx-border-radius: 0 0 8 8;" +
+                "-fx-width: 500px;"
+            );
+        }
     }
 
     private void styleComboBox(String bgInput, String textCol, String subText) {
@@ -944,5 +1043,28 @@ public class MainController {
                 }
             }
         });
+    }
+
+    private boolean isWindowsDarkMode() {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (!os.contains("win")) {
+                return true; 
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(
+                "reg", "query", 
+                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 
+                "/v", "AppsUseLightTheme"
+            );
+            
+            Process process = pb.start();
+            String output = new String(process.getInputStream().readAllBytes());
+            
+            return output.contains("0x0");
+
+        } catch (Exception e) {
+            return true; 
+        }
     }
 }

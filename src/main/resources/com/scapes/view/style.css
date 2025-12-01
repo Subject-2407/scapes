@@ -41,15 +41,15 @@
 
 /* --- BUTTON --- */
 .btn-search {
-    /* Hapus background & text fill */
-    -fx-font-weight: bold;
     -fx-background-radius: 8;
     -fx-cursor: hand;
     -fx-padding: 8 20 8 20;
+    -fx-font-size: 14px;
+    -fx-background-color: #0c6370;
 }
 
 .btn-search:hover {
-    -fx-background-color: #008eff; /* Hover effect boleh tetap */
+    -fx-background-color: #094e59;
 }
 
 /* --- CENTER AREA --- */
@@ -138,4 +138,27 @@
 .custom-tab-pane .tab-content-area .tab-header-background {
     -fx-background-color: transparent;
     -fx-padding: 0;
+}
+
+/* Pastikan container menu memakan lebar penuh */
+.context-menu {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-background-radius: 0 0 8 8;
+    /* Pastikan box sizing benar agar border tidak menambah lebar total */
+    -fx-box-border: transparent;
+    -fx-pref-width: 300px;
+}
+
+/* Pastikan item di dalamnya juga stretch */
+.context-menu .menu-item {
+    -fx-padding: 8 12;
+    -fx-background-insets: 0;
+    -fx-pref-width: 100%; /* Paksa item memenuhi lebar parent */
+}
+
+/* Label di dalam menu item juga harus stretch */
+.context-menu .menu-item .label {
+    -fx-padding: 0;
+    -fx-text-fill: -theme-tab-text; /* Opsional: sesuaikan variabel warna */
 }
