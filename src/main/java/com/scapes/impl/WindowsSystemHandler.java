@@ -22,6 +22,10 @@ import org.slf4j.LoggerFactory;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.win32.W32APIOptions;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.util.Iterator;
 
 public class WindowsSystemHandler implements SystemHandler {
     private static final Logger logger = LoggerFactory.getLogger(WindowsSystemHandler.class);
@@ -41,11 +45,17 @@ public class WindowsSystemHandler implements SystemHandler {
     @Override
     public File downloadImage(String url, String filename) {
         try {
-            logger.info("Downloading image from: " + url);
-            
-            if (!Files.exists(downloadPath)) Files.createDirectories(downloadPath);
             String safeFilename = filename.replaceAll("[^a-zA-Z0-9.-]", "_");
             Path destination = downloadPath.resolve(safeFilename);
+            File file = destination.toFile();
+
+            if (file.exists() && file.length() > 0) {
+                logger.info("Requested image is already cached, skipped downloading: " + safeFilename);
+                return file;
+            }
+
+            logger.info("Downloading image from: " + url);
+            if (!Files.exists(downloadPath)) Files.createDirectories(downloadPath);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest req = HttpRequest.newBuilder()
@@ -55,10 +65,9 @@ public class WindowsSystemHandler implements SystemHandler {
                     .build();
             
             // download image as stream
-            InputStream stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream()).body();
-            // save to file
-            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
-            stream.close();
+            try (InputStream stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream()).body()) {
+                Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
             // give some time for file system to register the new file
             Thread.sleep(100); 
 
@@ -104,10 +113,26 @@ public class WindowsSystemHandler implements SystemHandler {
                     .filter(p -> p.toString().endsWith(".jpg") || p.toString().endsWith(".png"))
                     .forEach(path -> {
                         File file = path.toFile();
+                        double w = 1920; // Default fallback
+                        double h = 1080;
                         String fileName = file.getName();
                         String fileUri = file.toURI().toString();
 
-                        localImages.add(new WallpaperImage(fileName, fileUri, fileUri, "Downloaded Image", "Local"));
+                        try (ImageInputStream in = ImageIO.createImageInputStream(file)) {
+                                 final Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
+                                 if (readers.hasNext()) {
+                                     ImageReader reader = readers.next();
+                                     try {
+                                         reader.setInput(in);
+                                         w = reader.getWidth(0);
+                                         h = reader.getHeight(0);
+                                     } finally {
+                                         reader.dispose();
+                                     }
+                                 }
+                             } catch (Exception e) {}
+
+                        localImages.add(new WallpaperImage(fileName, fileUri, fileUri, "Downloaded Image", "Local", w, h));
                     });
                 }
             }

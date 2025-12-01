@@ -7,5 +7,5 @@ import com.scapes.model.WallpaperImage;
 
 public interface WallpaperProvider {
     String getProviderName();
-    CompletableFuture<List<WallpaperImage>> searchImages(String query, double minWidth, double minHeight);
+    CompletableFuture<List<WallpaperImage>> searchImages(String query, int page, double minWidth, double minHeight);
 }

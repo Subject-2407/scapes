@@ -29,12 +29,12 @@ public class ProviderManager {
         }
     }
 
-    public CompletableFuture<List<WallpaperImage>> search(String query, double minWidth, double minHeight) {
+    public CompletableFuture<List<WallpaperImage>> search(String query, int page, double minWidth, double minHeight) {
         if (currentProvider == null) {
             logger.error("No active provider set!");
             return CompletableFuture.failedFuture(new RuntimeException("No provider registered!"));
         }
-        return currentProvider.searchImages(query, minWidth, minHeight);
+        return currentProvider.searchImages(query, page, minWidth, minHeight);
     }
     
     public List<String> getAvailableProviders() {
