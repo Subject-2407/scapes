@@ -157,6 +157,8 @@ public class MainController {
 
         // Window Controls
         setupWindowControls();
+
+        setupFocusTraversal();
     }
 
     // search suggestion
@@ -1066,5 +1068,25 @@ public class MainController {
         } catch (Exception e) {
             return true; 
         }
+    }
+
+    private void setupFocusTraversal() {
+        for (Node node : topBar.getChildren()) {
+            node.setFocusTraversable(false);
+        }
+
+        mainTabPane.setFocusTraversable(false);
+        scrollPane.setFocusTraversable(false);
+        if (localScrollPane != null) localScrollPane.setFocusTraversable(false);
+
+        if (btnMin != null) btnMin.setFocusTraversable(false);
+        if (btnMax != null) btnMax.setFocusTraversable(false);
+        if (btnClose != null) btnClose.setFocusTraversable(false);
+        if (themeBtn != null) themeBtn.setFocusTraversable(false);
+        if (providerCombo != null) providerCombo.setFocusTraversable(false);
+
+        searchField.setFocusTraversable(true);
+        
+        Platform.runLater(() -> searchField.requestFocus());
     }
 }
