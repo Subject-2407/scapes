@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 public class SuggestionService {
     private static final Logger logger = LoggerFactory.getLogger(SuggestionService.class);
     // endpoints
-    private static final String LOG_API_URL = "https://lte-lyzer.atmadja.id/scapes-logger/log_search.php";
+    private static final String LOG_API_URL = "https://lte-lyzer.atmadja.id/app/api/scapes-logger/log_search.php";
     private static final String ML_API_URL  = "http://103.147.46.234:8000/recommend";
 
     private final HttpClient client;
