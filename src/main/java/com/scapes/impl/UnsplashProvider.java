@@ -66,7 +66,7 @@ public class UnsplashProvider implements WallpaperProvider {
                     String full = urls.get("regular").getAsString();
                     String thumb = urls.get("small").getAsString();
 
-                    results.add(new WallpaperImage(id, full, thumb, desc, "Unsplash"));
+                    results.add(new WallpaperImage(id, full, thumb, desc, "Unsplash", imgW, imgH));
                 });
             } catch (Exception e) {
                 logger.error("Failed to search Unsplash for query: " + query, e); 

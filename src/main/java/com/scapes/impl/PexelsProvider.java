@@ -75,7 +75,7 @@ public class PexelsProvider implements WallpaperProvider {
                         String full = src.get("original").getAsString();
                         String thumb = src.get("medium").getAsString(); 
 
-                        results.add(new WallpaperImage(id, full, thumb, desc, "Pexels"));
+                        results.add(new WallpaperImage(id, full, thumb, desc, "Pexels", imgW, imgH));
                     });
                 }
             } catch (Exception e) { 
