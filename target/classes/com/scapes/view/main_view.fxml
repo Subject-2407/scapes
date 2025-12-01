@@ -25,7 +25,7 @@
         <HBox fx:id="topBar" alignment="CENTER_LEFT" spacing="10.0">            
             <ComboBox fx:id="providerCombo" prefWidth="140.0" promptText="Pilih Sumber"/>
             <TextField fx:id="searchField" prefWidth="300.0" promptText="Search wallpapers..." onAction="#onSearchAction"/>
-            <Button onAction="#onSearchAction" text="Search"/>
+            <Button styleClass="btn-search" onAction="#onSearchAction" text="Search"/>
             
             <Button fx:id="themeBtn" onAction="#toggleTheme" text="☀"/>
             
