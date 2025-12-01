@@ -36,7 +36,7 @@
 }
 
 .search-field:focused {
-    -fx-border-color: #0078d7; /* Highlight biru boleh tetap disini */
+    -fx-border-color: #0c6370; /* Highlight biru boleh tetap disini */
 }
 
 /* --- BUTTON --- */
@@ -94,7 +94,7 @@
 }
 
 .scroll-bar:vertical .thumb:pressed {
-    -fx-background-color: #0078d7;
+    -fx-background-color: #0c6370;
 }
 
 .scroll-bar .increment-button, 
@@ -104,4 +104,38 @@
     -fx-min-height: 0;
     -fx-max-height: 0;
     -fx-pref-height: 0;
+}
+
+/* Style TabPane agar menyatu dengan background */
+.custom-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.custom-tab-pane .tab {
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 3px;
+    -fx-background-color: transparent;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 5 20 7 20;
+    -fx-text-fill: -theme-tab-text;
+}
+
+.custom-tab-pane .tab:selected {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent #0c6370 transparent; /* Garis biru di bawah tab aktif */
+    -fx-border-width: 3px;
+    -fx-text-fill: -theme-tab-text-selected;
+}
+
+.custom-tab-pane .tab:hover {
+    -fx-background-color: -theme-tab-hover-bg;
+    -fx-cursor: hand;
+}
+
+.custom-tab-pane .tab-content-area .tab-header-background {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
 }
