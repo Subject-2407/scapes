@@ -93,6 +93,9 @@ public class MainController {
     private Image iconBlack;
     private ImageView headerIconView;
 
+    private double storedX, storedY, storedWidth, storedHeight;
+    private boolean isMaximized = false;
+
     public void init(ProviderManager manager, SystemHandler system) {
         this.providerManager = manager;
         this.systemHandler = system;
@@ -139,9 +142,9 @@ public class MainController {
         Platform.runLater(() -> {
             if (rootPane.getScene() != null) {
                 javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
-                stage.maximizedProperty().addListener((obs, wasMaximized, isNowMaximized) -> {
-                    if (btnMax != null) btnMax.setText(isNowMaximized ? "❐" : "⬜");
-                });
+                // stage.maximizedProperty().addListener((obs, wasMaximized, isNowMaximized) -> {
+                //     if (btnMax != null) btnMax.setText(isNowMaximized ? "❐" : "⬜");
+                // });
             }
         });
 
@@ -152,8 +155,22 @@ public class MainController {
 
         topBar.setOnMouseDragged(event -> {
             javafx.stage.Stage stage = (javafx.stage.Stage) topBar.getScene().getWindow();
-            if (stage.isMaximized()) stage.setMaximized(false);
-            else {
+
+            if (isMaximized) {
+                // Kembalikan ke normal dulu
+                isMaximized = false;
+                if (btnMax != null) btnMax.setText("⬜");
+                
+                double currentMouseX = event.getScreenX();
+                double ratio = (currentMouseX - stage.getX()) / stage.getWidth();
+                
+                stage.setWidth(storedWidth);
+                stage.setHeight(storedHeight);
+                
+                stage.setX(currentMouseX - (storedWidth * ratio));
+                stage.setY(event.getScreenY() - yOffset);
+                
+            } else {
                 stage.setX(event.getScreenX() - xOffset);
                 stage.setY(event.getScreenY() - yOffset);
             }
@@ -512,9 +529,43 @@ public class MainController {
 
     @FXML private void closeApp() { Platform.exit(); System.exit(0); }
     @FXML private void minimizeApp() { ((javafx.stage.Stage) rootPane.getScene().getWindow()).setIconified(true); }
-    @FXML private void maximizeApp() {
+    @FXML
+    private void maximizeApp() {
         javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
-        stage.setMaximized(!stage.isMaximized());
+        
+        // Ambil list layar (monitor) tempat window berada saat ini
+        List<Screen> screens = Screen.getScreensForRectangle(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
+        Screen screen = screens.isEmpty() ? Screen.getPrimary() : screens.get(0);
+
+        Rectangle2D bounds = screen.getVisualBounds();
+
+        if (isMaximized) {
+            // --- RESTORE (Kembali ke ukuran semula) ---
+            stage.setX(storedX);
+            stage.setY(storedY);
+            stage.setWidth(storedWidth);
+            stage.setHeight(storedHeight);
+            
+            // Ganti Icon jadi Kotak (Maximize)
+            if (btnMax != null) btnMax.setText("⬜"); 
+            isMaximized = false;
+        } else {
+            // --- MAXIMIZE (Simpan dulu posisi sekarang) ---
+            storedX = stage.getX();
+            storedY = stage.getY();
+            storedWidth = stage.getWidth();
+            storedHeight = stage.getHeight();
+
+            // Set ukuran sesuai Visual Bounds (Taskbar aman!)
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
+
+            // Ganti Icon jadi Tumpuk (Restore)
+            if (btnMax != null) btnMax.setText("❐"); 
+            isMaximized = true;
+        }
     }
     @FXML private void toggleTheme() {
         isDarkMode = !isDarkMode;
@@ -536,10 +587,18 @@ public class MainController {
         String bgInput= isDarkMode ? "#1e1e1e" : "#eeeeee"; 
         String textCol= isDarkMode ? "white"   : "black";
         String subText= isDarkMode ? "#aaaaaa" : "#555555";
-        String accent = "#0078d7"; 
+        String accent = "#0c6370"; 
 
         // --- WARNA SCROLLBAR ---
         String scrollColor = isDarkMode ? "#333333" : "#C0C0C0";
+
+        String tabText     = isDarkMode ? "#ff0000" : "#777777"; 
+        
+        // Tab Text Selected: Putih (Dark) / Hitam (Light)
+        String tabTextSel  = isDarkMode ? "white"   : "black"; 
+        
+        // Tab Hover BG: Putih transparan (Dark) / Hitam transparan (Light)
+        String tabHoverBg  = isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)";
 
         // 1. Root: Set Background DAN Definisikan Variabel Scrollbar disini
         // Memindahkan definisi variabel ke root akan memperbaiki error "String cannot be cast to Paint"
@@ -611,6 +670,33 @@ public class MainController {
         }
 
         updateHeaderIcon();
+
+        // Tambahkan warna border
+        String borderColor = isDarkMode ? "#333333" : "#cccccc";
+
+        // --- 1. Root Styling (Radius & Border) ---
+        // Kita gunakan CSS string yang lengkap disini
+        String rootStyle = 
+        "-fx-background-color: " + bgRoot + ";" +   // Warna Background
+        "-fx-background-radius: 12;" +              // Lengkungan Background
+        "-fx-border-color: " + borderColor + ";" +  // Warna Garis
+        "-fx-border-width: 1;" +
+        "-fx-border-radius: 12;" +                  // Lengkungan Garis (Harus sama dgn background)
+        "-fx-thumb-color: " + scrollColor + ";" +
+            
+            "-theme-tab-text: " + tabText + ";" +
+            "-theme-tab-text-selected: " + tabTextSel + ";" +
+            "-theme-tab-hover-bg: " + tabHoverBg + ";";
+
+        // PENTING: Reset background JavaFX object agar tidak menimpa CSS
+        rootPane.setBackground(Background.EMPTY); 
+        rootPane.setStyle(rootStyle);
+
+        topBar.setStyle(
+            "-fx-background-color: " + bgBar + ";" +
+            "-fx-background-radius: 12 12 0 0;" 
+        );
+        topBar.setEffect(new DropShadow(5, Color.rgb(0,0,0, isDarkMode ? 0.5 : 0.1)));
     }
 
     private void styleComboBox(String bgInput, String textCol, String subText) {
@@ -662,7 +748,7 @@ public class MainController {
                     String currentTextFill;
 
                     if (isSelected() || isHover()) {
-                        currentBg = "#0078d7";
+                        currentBg = "#0c6370";
                         currentTextFill = "white";
                     } else {
                         currentBg = bgInput;
@@ -671,9 +757,9 @@ public class MainController {
 
                     setStyle(baseFont + "-fx-background-color: " + currentBg + "; -fx-text-fill: " + currentTextFill + ";");
 
-                    setOnMouseEntered(e -> setStyle(baseFont + "-fx-background-color: #0078d7; -fx-text-fill: white;"));
+                    setOnMouseEntered(e -> setStyle(baseFont + "-fx-background-color: #0c6370; -fx-text-fill: white;"));
                     setOnMouseExited(e -> {
-                        String bg = isSelected() ? "#0078d7" : bgInput;
+                        String bg = isSelected() ? "#0c6370" : bgInput;
                         String tf = isSelected() ? "white" : textCol;
                         setStyle(baseFont + "-fx-background-color: " + bg + "; -fx-text-fill: " + tf + ";");
                     });

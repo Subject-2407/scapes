@@ -36,7 +36,7 @@
 }
 
 .search-field:focused {
-    -fx-border-color: #0078d7; /* Highlight biru boleh tetap disini */
+    -fx-border-color: #0c6370; /* Highlight biru boleh tetap disini */
 }
 
 /* --- BUTTON --- */
@@ -94,7 +94,7 @@
 }
 
 .scroll-bar:vertical .thumb:pressed {
-    -fx-background-color: #0078d7;
+    -fx-background-color: #0c6370;
 }
 
 .scroll-bar .increment-button, 
@@ -112,26 +112,30 @@
 }
 
 .custom-tab-pane .tab {
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 3px;
     -fx-background-color: transparent;
-    -fx-text-fill: #aaaaaa;
     -fx-font-size: 14px;
     -fx-font-weight: bold;
-    -fx-padding: 10 20;
+    -fx-padding: 5 20 7 20;
+    -fx-text-fill: -theme-tab-text;
 }
 
 .custom-tab-pane .tab:selected {
-    -fx-border-color: transparent transparent #0078d7 transparent; /* Garis biru di bawah tab aktif */
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent #0c6370 transparent; /* Garis biru di bawah tab aktif */
     -fx-border-width: 3px;
-    -fx-text-fill: white;
+    -fx-text-fill: -theme-tab-text-selected;
 }
 
 .custom-tab-pane .tab:hover {
-    -fx-background-color: #333333;
+    -fx-background-color: -theme-tab-hover-bg;
     -fx-cursor: hand;
 }
 
-/* Biar content area transparan */
-.custom-tab-pane .tab-content-area {
+.custom-tab-pane .tab-content-area .tab-header-background {
     -fx-background-color: transparent;
     -fx-padding: 0;
 }

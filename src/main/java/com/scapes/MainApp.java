@@ -11,6 +11,7 @@ import com.scapes.core.SystemHandler;
 import com.scapes.impl.PexelsProvider;
 import com.scapes.impl.UnsplashProvider;
 import com.scapes.impl.WindowsSystemHandler;
+import com.scapes.util.ResizeHelper;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -60,6 +61,7 @@ public class MainApp extends Application {
         FXMLLoader loader = new FXMLLoader(getClass().getResource(MAIN_VIEW_FXML));
         String css = this.getClass().getResource(APP_STYLE).toExternalForm();
         Scene scene = new Scene(loader.load());
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
         // favicon
         Image appIcon = new Image(getClass().getResourceAsStream(APP_ICON));
         if (appIcon != null) {
@@ -67,7 +69,7 @@ public class MainApp extends Application {
         }
 
         scene.getStylesheets().add(css);
-        stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        stage.initStyle(javafx.stage.StageStyle.TRANSPARENT);
         
         // wallpaper provider setup
         logger.info("Setting up wallpaper providers...");
@@ -103,10 +105,12 @@ public class MainApp extends Application {
 
         // show the stage
         // set stage min size with respecting current scene size
-        stage.setMinWidth(scene.getWidth());
-        stage.setMinHeight(scene.getHeight());
+
         stage.setTitle(APP_TITLE);
         stage.setScene(scene);
+        stage.setMinWidth(900);
+        stage.setMinHeight(600);
+        ResizeHelper.addResizeListener(stage);
         stage.show();
 
         logger.info("Scapes started successfully.");
