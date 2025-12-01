@@ -6,6 +6,7 @@ import com.scapes.model.WallpaperImage;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -13,7 +14,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 
+import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,9 +25,14 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 // controller for main UI
 
 public class MainController {
+    // --- Logger ---
+    private static final Logger logger = LoggerFactory.getLogger(MainController.class);
 
     // --- FXML Components ---
     @FXML private TextField searchField;
@@ -35,7 +43,15 @@ public class MainController {
     private ProviderManager providerManager;
     private SystemHandler systemHandler;
 
-    private static final HttpClient client = HttpClient.newHttpClient();
+    // --- Desktop resolution ---
+    private Rectangle2D screenBounds = Screen.getPrimary().getBounds();
+    private double screenWidth = screenBounds.getWidth() * 0.8; // use 80% of screen width
+    private double screenHeight = screenBounds.getHeight() * 0.8; // use 80% of screen height
+
+    // --- HTTP Client ---
+    private static final HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10))
+            .build();
 
     public void init(ProviderManager manager, SystemHandler system) {
         this.providerManager = manager;
@@ -59,17 +75,16 @@ public class MainController {
     public void onSearchAction() {
         String query = searchField.getText();
         if (query.isEmpty() || providerManager == null) return;
-
-        System.out.println("Searching '" + query + "' using " + providerCombo.getValue());
         
         imageGrid.getChildren().clear();
-        imageGrid.getChildren().add(new Label("Loading..."));
+        Label loadingLabel = new Label("Loading...");
+        loadingLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+        imageGrid.getChildren().add(loadingLabel);
 
         // call provider to search
-        providerManager.search(query)
+        providerManager.search(query, screenWidth, screenHeight)
             .thenAccept(this::displayImages) // update UI with results
-            .exceptionally(ex -> { // handle error
-                ex.printStackTrace();
+            .exceptionally(ex -> {
                 return null;
             });
     }
@@ -79,7 +94,7 @@ public class MainController {
             imageGrid.getChildren().clear();
             
             if (images.isEmpty()) {
-                imageGrid.getChildren().add(new Label("Tidak ada hasil ditemukan."));
+                imageGrid.getChildren().add(new Label("No images found."));
                 return;
             }
 
@@ -96,8 +111,9 @@ public class MainController {
         card.setStyle("-fx-background-color: white; -fx-padding: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 1);");
         
         ImageView imageView = new ImageView();
-        imageView.setFitWidth(220);
         imageView.setFitHeight(150);
+        imageView.setFitWidth(200);
+        imageView.setPreserveRatio(true);
         loadImageAsync(data.getThumbnailUrl(), imageView);
         
         Label descLabel = new Label(data.getDescription());
@@ -108,14 +124,14 @@ public class MainController {
 
         // handle click to set wallpaper
         card.setOnMouseClicked(e -> {
-            System.out.println("User choose: " + data.getImageUrl());
-            // TODO: call system handler to download & set wallpaper
+            File downloadedImage = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
+
+            systemHandler.setWallpaper(downloadedImage);
         });
 
         return card;
     }
 
-    // is actually a workaround specific for Pexels thumbnails loading issue
     private void loadImageAsync(String url, ImageView target) {
         CompletableFuture.runAsync(() -> {
             try {
@@ -128,12 +144,13 @@ public class MainController {
                 HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
                 if (response.statusCode() == 200) {
-                    Image image = new Image(response.body());
-                    
+                    Image image = new Image(response.body());   
                     Platform.runLater(() -> target.setImage(image));
+                } else {
+                    logger.error("Failed to load thumbnail: " + url + " (Status: " + response.statusCode() + ")");
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("Error loading thumbnail: " + url, e);
             }
         });
     }
