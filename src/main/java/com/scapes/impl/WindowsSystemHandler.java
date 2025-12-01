@@ -1,6 +1,8 @@
 package com.scapes.impl;
 
 import com.scapes.core.SystemHandler;
+import com.scapes.model.WallpaperImage;
+
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -10,6 +12,9 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +25,7 @@ import com.sun.jna.win32.W32APIOptions;
 
 public class WindowsSystemHandler implements SystemHandler {
     private static final Logger logger = LoggerFactory.getLogger(WindowsSystemHandler.class);
-    private static final Path folderPath = Path.of(System.getProperty("user.home"), "Pictures", "Scapes");
+    private static final Path downloadPath = Path.of(System.getProperty("user.home"), "Pictures", "Scapes");
 
     public interface User32 extends Library {
         User32 INSTANCE = Native.load("user32", User32.class, W32APIOptions.UNICODE_OPTIONS);
@@ -38,9 +43,9 @@ public class WindowsSystemHandler implements SystemHandler {
         try {
             logger.info("Downloading image from: " + url);
             
-            if (!Files.exists(folderPath)) Files.createDirectories(folderPath);
+            if (!Files.exists(downloadPath)) Files.createDirectories(downloadPath);
             String safeFilename = filename.replaceAll("[^a-zA-Z0-9.-]", "_");
-            Path destination = folderPath.resolve(safeFilename);
+            Path destination = downloadPath.resolve(safeFilename);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest req = HttpRequest.newBuilder()
@@ -85,5 +90,31 @@ public class WindowsSystemHandler implements SystemHandler {
         }
 
         return result;
+    }
+
+    @Override
+    public List<WallpaperImage> getDownloadedImages() {
+        List<WallpaperImage> localImages = new ArrayList<>();
+
+        // scan the download folder for images
+        try {
+            if (Files.exists(downloadPath)) {
+                try (Stream<Path> paths = Files.walk(downloadPath)) {
+                    paths.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".jpg") || p.toString().endsWith(".png"))
+                    .forEach(path -> {
+                        File file = path.toFile();
+                        String fileName = file.getName();
+                        String fileUri = file.toURI().toString();
+
+                        localImages.add(new WallpaperImage(fileName, fileUri, fileUri, "Downloaded Image", "Local"));
+                    });
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to scan downloaded images from " + downloadPath, e);
+        }
+
+        return localImages;
     }
 }
