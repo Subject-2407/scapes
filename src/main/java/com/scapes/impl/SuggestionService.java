@@ -23,7 +23,8 @@ public class SuggestionService {
     // endpoints
     private static final String LOG_API_URL = "https://lte-lyzer.atmadja.id/app/api/scapes-logger/log_search.php";
     private static final String TRENDING_API_URL = "https://lte-lyzer.atmadja.id/app/api/scapes-logger/get_trending.php";
-    private static final String ML_API_URL  = "http://103.147.46.234:8000/recommend";
+    private static final String PREDICT_API_URL = "http://103.147.46.234:8000/predict";
+    private static final String RECOMMEND_API_URL  = "http://103.147.46.234:8000/recommend";
 
     private final HttpClient client;
     private final Gson gson;
@@ -82,31 +83,43 @@ public class SuggestionService {
         });
     }
 
+    public CompletableFuture<List<String>> getPredictions(String partialWord) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<String> results = new ArrayList<>();
+            try {
+                String url = PREDICT_API_URL + "?query=" + partialWord.replace(" ", "%20");
+                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() == 200) {
+                    Type listType = new TypeToken<ArrayList<String>>(){}.getType();
+                    results = gson.fromJson(response.body(), listType);
+                }
+            } catch (Exception e) {
+                logger.error("Keyword Prediction Service offline: " + e.getMessage(), e);
+            }
+            return results;
+        });
+    }
+
     public CompletableFuture<List<String>> getRecommendations(String keyword) {
         return CompletableFuture.supplyAsync(() -> {
-            List<String> suggestions = new ArrayList<>();
+            List<String> results = new ArrayList<>();
             try {
-                String url = ML_API_URL + "?keyword=" + keyword.replace(" ", "%20");
-                
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
-                        .GET()
-                        .build();
-
+                String url = RECOMMEND_API_URL + "?keyword=" + keyword.replace(" ", "%20");
+                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 200) {
                     JsonObject json = gson.fromJson(response.body(), JsonObject.class);
-
                     if (json.has("recommendations")) {
-                        JsonArray array = json.getAsJsonArray("recommendations");
-                        array.forEach(item -> suggestions.add(item.getAsString()));
+                        json.getAsJsonArray("recommendations").forEach(e -> results.add(e.getAsString()));
                     }
                 }
-            } catch (Exception e) {
-                logger.error("Recommender Service offline: " + e.getMessage(), e);
-            }
-            return suggestions;
+            } catch (Exception e) { 
+                logger.error("Suggestion Service offline: " + e.getMessage(), e);
+             }
+            return results;
         });
     }
 
