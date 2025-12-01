@@ -96,6 +96,12 @@ public class MainController {
     private double storedX, storedY, storedWidth, storedHeight;
     private boolean isMaximized = false;
 
+    // --- Pagination State ---
+    private int currentPage = 1;
+    private boolean isLoading = false;
+    private String currentQuery = "";
+    private List<Node> activeSkeletons = new ArrayList<>();
+
     public void init(ProviderManager manager, SystemHandler system) {
         this.providerManager = manager;
         this.systemHandler = system;
@@ -118,6 +124,13 @@ public class MainController {
         }
         scrollPane.setVisible(false);
 
+        scrollPane.vvalueProperty().addListener((obs, oldVal, newVal) -> {
+            // Jika scroll sudah 80% ke bawah (0.8) DAN tidak sedang loading DAN ada query
+            if (newVal.doubleValue() > 0.8 && !isLoading && !currentQuery.isEmpty()) {
+                loadNextPage();
+            }
+        });
+
         // --- SETUP MASONRY UNTUK KEDUA TAB ---
         masonryContainer = setupMasonryContainer(scrollPane);
         localMasonryContainer = setupMasonryContainer(localScrollPane);
@@ -136,6 +149,44 @@ public class MainController {
 
         // Window Controls
         setupWindowControls();
+    }
+
+    // pagination load next page
+    private void loadNextPage() {
+        isLoading = true;
+        currentPage++;
+        System.out.println("Loading page: " + currentPage);
+
+        // 1. Tampilkan Skeleton di bawah
+        showSkeletons();
+
+        // 2. Fetch Data
+        providerManager.search(currentQuery, currentPage, screenWidth, screenHeight)
+            .thenAccept(images -> {
+                Platform.runLater(() -> {
+                    // 3. Hapus Skeleton
+                    removeSkeletons();
+                    
+                    if (images.isEmpty()) {
+                        // Stop infinite scroll jika data habis
+                        // Opsional: Tampilkan label "End of results"
+                    } else {
+                        // 4. Append gambar baru ke Masonry
+                        for (WallpaperImage img : images) {
+                            VBox card = createOnlineCard(img);
+                            addCardToMasonry(card, masonryColumns, columnHeights);
+                        }
+                    }
+                    isLoading = false;
+                });
+            })
+            .exceptionally(ex -> {
+                Platform.runLater(() -> {
+                    removeSkeletons();
+                    isLoading = false;
+                });
+                return null;
+            });
     }
 
     private void setupWindowControls() {
@@ -293,23 +344,98 @@ public class MainController {
         }
         scrollPane.setVisible(true);
 
+        currentQuery = query;
+        currentPage = 1;
+        isLoading = true;
+
         // Clear Online Columns
         for (VBox col : masonryColumns) col.getChildren().clear();
         columnHeights.replaceAll((k, v) -> 0.0);
 
-        providerManager.search(query, screenWidth, screenHeight)
-                .thenAccept(this::displayOnlineImages)
-                .exceptionally(ex -> { logger.error("Search failed", ex); return null; });
+        showSkeletons();
+
+        providerManager.search(query, currentPage, screenWidth, screenHeight)
+                .thenAccept(images -> {
+                Platform.runLater(() -> {
+                    removeSkeletons();
+                    if (images.isEmpty()) {
+                        // Tampilkan pesan "Tidak ditemukan"
+                    } else {
+                        for (WallpaperImage img : images) {
+                            VBox card = createOnlineCard(img);
+                            addCardToMasonry(card, masonryColumns, columnHeights);
+                        }
+                    }
+                    isLoading = false;
+                });
+            })
+                .exceptionally(ex -> { 
+                    Platform.runLater(() -> {
+                        removeSkeletons();
+                        isLoading = false;
+                    });
+                    logger.error("Search failed", ex); return null; });
     }
 
-    private void displayOnlineImages(List<WallpaperImage> images) {
-        Platform.runLater(() -> {
-            if (images.isEmpty()) return;
-            for (WallpaperImage img : images) {
-                VBox card = createOnlineCard(img);
-                addCardToMasonry(card, masonryColumns, columnHeights);
+    private void showSkeletons() {
+        // Tampilkan 10 skeleton card dummy
+        for (int i = 0; i < 10; i++) {
+            VBox skeleton = createSkeletonCard();
+            addCardToMasonry(skeleton, masonryColumns, columnHeights);
+            activeSkeletons.add(skeleton); // Simpan referensi biar bisa dihapus
+        }
+    }
+
+    private void removeSkeletons() {
+        // Hapus semua skeleton dari kolomnya masing-masing
+        for (Node node : activeSkeletons) {
+            if (node.getParent() instanceof VBox) {
+                VBox parentCol = (VBox) node.getParent();
+                parentCol.getChildren().remove(node);
+                
+                // Kurangi tinggi kolom agar kalkulasi masonry berikutnya akurat
+                if (columnHeights.containsKey(parentCol)) {
+                    double currentH = columnHeights.get(parentCol);
+                    // Kurangi estimasi tinggi skeleton (rata-rata 200 + 12 margin)
+                    columnHeights.put(parentCol, Math.max(0, currentH - 212)); 
+                }
             }
-        });
+        }
+        activeSkeletons.clear();
+    }
+
+    private VBox createSkeletonCard() {
+        VBox card = new VBox(8);
+        card.setPadding(Insets.EMPTY);
+        
+        double colWidth = getCurrentColWidth();
+        
+        // 1. Kotak Abu-abu (Pengganti Gambar)
+        // Tinggi acak antara 150 - 300 biar mirip masonry asli
+        double randomHeight = 150 + Math.random() * 150; 
+        
+        Region box = new Region();
+        box.setPrefSize(colWidth, randomHeight);
+        
+        // Warna Skeleton (Sesuaikan tema)
+        String color = isDarkMode ? "#333333" : "#e0e0e0";
+        box.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 12;");
+
+        // 2. Baris Teks Dummy
+        Region textBar = new Region();
+        textBar.setPrefSize(colWidth * 0.6, 12); // Lebar 60%
+        textBar.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 4;");
+        
+        // 3. Animasi Denyut (Breathing Effect)
+        javafx.animation.FadeTransition fade = new javafx.animation.FadeTransition(Duration.millis(800), card);
+        fade.setFromValue(0.5);
+        fade.setToValue(1.0);
+        fade.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        fade.setAutoReverse(true);
+        fade.play();
+
+        card.getChildren().addAll(box, textBar);
+        return card;
     }
 
     public void initAppIcons(Image imgWhite, Image imgBlack) {

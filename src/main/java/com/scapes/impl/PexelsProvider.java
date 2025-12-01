@@ -28,7 +28,7 @@ public class PexelsProvider implements WallpaperProvider {
     public String getProviderName() { return "Pexels"; }
 
     @Override
-    public CompletableFuture<List<WallpaperImage>> searchImages(String query, double minWidth, double minHeight) {
+    public CompletableFuture<List<WallpaperImage>> searchImages(String query, int page, double minWidth, double minHeight) {
         logger.info("Searching Pexels for query: " + query);
         String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
         
@@ -36,7 +36,7 @@ public class PexelsProvider implements WallpaperProvider {
             List<WallpaperImage> results = new ArrayList<>();
             try {
                 logger.info("Sending request to Pexels API...");
-                String url = "https://api.pexels.com/v1/search?query=" + encodedQuery + "&per_page=30&orientation=landscape";
+                String url = "https://api.pexels.com/v1/search?query=" + encodedQuery + "&per_page=30&orientation=landscape" + "&page=" + page;
                 
                 HttpRequest req = HttpRequest.newBuilder()
                         .uri(URI.create(url))

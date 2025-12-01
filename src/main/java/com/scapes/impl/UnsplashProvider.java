@@ -28,7 +28,7 @@ public class UnsplashProvider implements WallpaperProvider {
     public String getProviderName() { return "Unsplash"; }
 
     @Override
-    public CompletableFuture<List<WallpaperImage>> searchImages(String query, double minWidth, double minHeight) {
+    public CompletableFuture<List<WallpaperImage>> searchImages(String query, int page, double minWidth, double minHeight) {
         logger.info("Searching Unsplash for query: " + query);
         String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
 
@@ -36,7 +36,7 @@ public class UnsplashProvider implements WallpaperProvider {
             List<WallpaperImage> results = new ArrayList<>();
             try {
                 logger.info("Sending request to Unsplash API...");
-                String url = "https://api.unsplash.com/search/photos?query=" + encodedQuery + "&client_id=" + API_KEY + "&per_page=30&orientation=landscape";
+                String url = "https://api.unsplash.com/search/photos?query=" + encodedQuery + "&client_id=" + API_KEY + "&per_page=30&orientation=landscape" + "&page=" + page;
                 HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
                 var resp = client.send(req, HttpResponse.BodyHandlers.ofString());
 
