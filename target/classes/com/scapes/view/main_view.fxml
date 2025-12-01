@@ -60,11 +60,6 @@
 
             <Tab text="Collections" onSelectionChanged="#onLocalTabSelected">
                 <BorderPane>
-                    <top>
-                        <HBox alignment="CENTER_RIGHT" style="-fx-padding: 10;">
-                            <Button text="🔄 Refresh Folder" onAction="#loadLocalImages"/>
-                        </HBox>
-                    </top>
                     <center>
                         <ScrollPane fx:id="localScrollPane" fitToWidth="true" style="-fx-background-color: transparent;">
                             <content>
