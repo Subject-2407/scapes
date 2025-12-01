@@ -12,6 +12,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.lang.reflect.Type;
+import com.google.gson.reflect.TypeToken;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ public class SuggestionService {
     private static final Logger logger = LoggerFactory.getLogger(SuggestionService.class);
     // endpoints
     private static final String LOG_API_URL = "https://lte-lyzer.atmadja.id/app/api/scapes-logger/log_search.php";
+    private static final String TRENDING_API_URL = "https://lte-lyzer.atmadja.id/app/api/scapes-logger/get_trending.php";
     private static final String ML_API_URL  = "http://103.147.46.234:8000/recommend";
 
     private final HttpClient client;
@@ -104,6 +107,28 @@ public class SuggestionService {
                 logger.error("Recommender Service offline: " + e.getMessage(), e);
             }
             return suggestions;
+        });
+    }
+
+    public CompletableFuture<List<String>> getTrendingKeywords() {
+        return CompletableFuture.supplyAsync(() -> {
+            List<String> trending = new ArrayList<>();
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(TRENDING_API_URL))
+                        .GET()
+                        .build();
+
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() == 200) {
+                    Type listType = new TypeToken<ArrayList<String>>(){}.getType();
+                    trending = gson.fromJson(response.body(), listType);
+                }
+            } catch (Exception e) {
+                logger.error("Trending Service offline: " + e.getMessage(), e);
+            }
+            return trending;
         });
     }
 }
