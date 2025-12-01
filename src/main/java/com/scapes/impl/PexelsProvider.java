@@ -15,7 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class PexelsProvider implements WallpaperProvider {
+    private static final Logger logger = LoggerFactory.getLogger(PexelsProvider.class);
     private static final String API_KEY = "GmgK9CKW7xIJelmpDPSBaNfYunq0cjFRGfuYBq70ba2uVYFtAe7gv33x"; 
     private final HttpClient client = HttpClient.newHttpClient();
     private final Gson gson = new Gson();
@@ -24,53 +28,58 @@ public class PexelsProvider implements WallpaperProvider {
     public String getProviderName() { return "Pexels"; }
 
     @Override
-    public CompletableFuture<List<WallpaperImage>> searchImages(String query) {
+    public CompletableFuture<List<WallpaperImage>> searchImages(String query, int page, double minWidth, double minHeight) {
+        logger.info("Searching Pexels for query: " + query);
         String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+        
         return CompletableFuture.supplyAsync(() -> {
             List<WallpaperImage> results = new ArrayList<>();
             try {
-                String url = "https://api.pexels.com/v1/search?query=" + encodedQuery + "&per_page=15";
+                logger.info("Sending request to Pexels API...");
+                String url = "https://api.pexels.com/v1/search?query=" + encodedQuery + "&per_page=30&orientation=landscape" + "&page=" + page;
                 
                 HttpRequest req = HttpRequest.newBuilder()
                         .uri(URI.create(url))
                         .header("Authorization", API_KEY) 
-                        .header("User-Agent", "ScapeApp/1.0") // PERBAIKAN 1: Tambah User-Agent agar tidak diblokir
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                         .GET()
                         .build();
                         
                 var resp = client.send(req, HttpResponse.BodyHandlers.ofString());
                 
-                // Debugging: Cek jika error dari server (misal 401 Unauthorized)
                 if (resp.statusCode() != 200) {
-                    System.err.println("Pexels Error: " + resp.statusCode() + " - " + resp.body());
+                    logger.error("Pexels API request failed with status: " + resp.statusCode());
                     return results;
                 }
 
                 JsonObject json = gson.fromJson(resp.body(), JsonObject.class);
-
+                logger.info("Parsing Pexels API response...");
                 if (json.has("photos")) {
                     json.getAsJsonArray("photos").forEach(elem -> {
                         JsonObject item = elem.getAsJsonObject();
-                        
-                        // PERBAIKAN 2: Gunakan getAsString() langsung agar aman meskipun ID-nya angka
+
+                        long imgW = item.get("width").getAsLong();
+                        long imgH = item.get("height").getAsLong();
+
+                        // skip images smaller than minimum dimensions
+                        if (imgW < minWidth || imgH < minHeight) {
+                            return;
+                        }
+
                         String id = item.get("id").getAsString(); 
-                        
-                        // PERBAIKAN 3: Null Safety (Ini penyebab utama error sebelumnya)
                         String desc = item.has("alt") && !item.get("alt").isJsonNull() 
                                     ? item.get("alt").getAsString() 
                                     : "Untitled";
                         
                         JsonObject src = item.getAsJsonObject("src");
                         String full = src.get("original").getAsString();
-                        
-                        // PERBAIKAN 4: Ganti 'landscape' (gede) ke 'medium' (ringan)
                         String thumb = src.get("medium").getAsString(); 
 
-                        results.add(new WallpaperImage(id, full, thumb, desc, "Pexels"));
+                        results.add(new WallpaperImage(id, full, thumb, desc, "Pexels", imgW, imgH));
                     });
                 }
             } catch (Exception e) { 
-                e.printStackTrace(); 
+                logger.error("Failed to search Pexels for query: " + query, e);
             }
             return results;
         });
