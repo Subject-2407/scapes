@@ -14,21 +14,21 @@ import javafx.stage.Stage;
 public class MainApp extends Application {
     private static final String APP_TITLE = "4scapes";
     private static final String MAIN_VIEW_FXML = "/com/scapes/view/main_view.fxml";
+    private static final String APP_STYLE = "/com/scapes/view/style.css";
+
     @Override
     public void start(Stage stage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource(MAIN_VIEW_FXML));
+        String css = this.getClass().getResource(APP_STYLE).toExternalForm();
         Scene scene = new Scene(loader.load());
 
-       String css = this.getClass().getResource("/com/scapes/view/style.css").toExternalForm();
         scene.getStylesheets().add(css);
-
         stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         
         // wallpaper provider setup
         ProviderManager manager = new ProviderManager();
         manager.registerProvider(new UnsplashProvider()); // source 1: Unsplash
         manager.registerProvider(new PexelsProvider());   // source 2: Pexels
-        // manager.registerProvider(new PixabayProvider());
 
         // system handler setup (for Windows)
         WindowsSystemHandler system = new WindowsSystemHandler();
