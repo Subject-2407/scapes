@@ -2,7 +2,6 @@ package com.scapes;
 
 import com.scapes.controller.MainController;
 import com.scapes.core.ProviderManager;
-import com.scapes.core.SystemHandler;
 import com.scapes.impl.PexelsProvider;
 import com.scapes.impl.UnsplashProvider;
 import com.scapes.impl.WindowsSystemHandler;
@@ -20,6 +19,11 @@ public class MainApp extends Application {
         FXMLLoader loader = new FXMLLoader(getClass().getResource(MAIN_VIEW_FXML));
         Scene scene = new Scene(loader.load());
 
+       String css = this.getClass().getResource("/com/scapes/view/style.css").toExternalForm();
+        scene.getStylesheets().add(css);
+
+        stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        
         // wallpaper provider setup
         ProviderManager manager = new ProviderManager();
         manager.registerProvider(new UnsplashProvider()); // source 1: Unsplash
