@@ -20,12 +20,12 @@
     <top>
         <HBox spacing="10" style="-fx-background-color: #2b2b2b; -fx-padding: 15; -fx-alignment: CENTER_LEFT;">
             
-            <ComboBox fx:id="providerCombo" prefWidth="150.0" promptText="Pilih Sumber"/>
+            <ComboBox fx:id="providerCombo" prefWidth="150.0" promptText="Source"/>
             
-            <TextField fx:id="searchField" promptText="Cari wallpaper (contoh: nature, neon)..." 
+            <TextField fx:id="searchField" promptText="Search wallpapers (example: nature, neon)..." 
                        HBox.hgrow="ALWAYS" style="-fx-font-size: 14px;"/>
             
-            <Button text="Cari" onAction="#onSearchAction" 
+            <Button text="Search" onAction="#onSearchAction" 
                     style="-fx-background-color: #0078d7; -fx-text-fill: white; -fx-font-weight: bold;"/>
         </HBox>
     </top>
