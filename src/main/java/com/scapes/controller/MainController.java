@@ -1,5 +1,22 @@
 package com.scapes.controller;
 
+import com.scapes.core.ProviderManager;
+import com.scapes.core.SystemHandler;
+import com.scapes.model.WallpaperImage;
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.TilePane;
+import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
+
+import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,6 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// controller for main UI
 import com.scapes.core.ProviderManager;
 import com.scapes.core.SystemHandler;
 import com.scapes.model.WallpaperImage;
@@ -38,6 +59,8 @@ import javafx.scene.text.Font;
 import javafx.util.Duration;
 
 public class MainController {
+    // --- Logger ---
+    private static final Logger logger = LoggerFactory.getLogger(MainController.class);
 
     // --- FXML Components ---
     @FXML private TextField searchField;
@@ -56,11 +79,20 @@ public class MainController {
     // --- Dependencies & Layout ---
     private ProviderManager providerManager;
     private SystemHandler systemHandler;
+
+    // --- Desktop resolution ---
+    private Rectangle2D screenBounds = Screen.getPrimary().getBounds();
+    private double screenWidth = screenBounds.getWidth() * 0.8; // use 80% of screen width
+    private double screenHeight = screenBounds.getHeight() * 0.8; // use 80% of screen height
+
+    // --- HTTP Client ---
+    private static final HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10))
+            .build();
     private HBox masonryContainer;
     private List<VBox> masonryColumns = new ArrayList<>();
     private Map<VBox, Double> columnHeights = new HashMap<>();
     private Map<VBox, VBox> cardColumnMap = new HashMap<>();
-    private static final HttpClient client = HttpClient.newHttpClient();
     private double xOffset = 0;
     private double yOffset = 0;
 
@@ -437,9 +469,9 @@ public class MainController {
         for(VBox col : masonryColumns) col.getChildren().clear();
         columnHeights.replaceAll((k, v) -> 0.0);
 
-        providerManager.search(query)
+        providerManager.search(query, screenWidth, screenHeight)
             .thenAccept(this::displayImages)
-            .exceptionally(ex -> { ex.printStackTrace(); return null; });
+            .exceptionally(ex -> { return null; });
     }
 
     private void displayImages(List<WallpaperImage> images) {
@@ -508,7 +540,9 @@ public class MainController {
             stEnter.stop(); stExit.playFromStart();
         });
         card.setOnMouseClicked(e -> {
-            System.out.println("User choose: " + data.getImageUrl());
+            File downloadedImage = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
+
+            systemHandler.setWallpaper(downloadedImage);
         });
 
         // MASUKKAN ELEMEN KE KARTU DULU
@@ -526,7 +560,7 @@ public class MainController {
                 HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", "Mozilla/5.0").GET().build();
                 HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
                 if (response.statusCode() == 200) {
-                    Image image = new Image(response.body());
+                    Image image = new Image(response.body());   
                     Platform.runLater(() -> {
                         target.setImage(image);
                         double w = target.getFitWidth(); if (w <= 0) w = 200;
@@ -543,8 +577,12 @@ public class MainController {
                             }
                         }
                     });
+                } else {
+                    logger.error("Failed to load thumbnail: " + url + " (Status: " + response.statusCode() + ")");
                 }
-            } catch (Exception e) {}
+            } catch (Exception e) {
+                logger.error("Error loading thumbnail: " + url, e);
+            }
         });
     }
 }
