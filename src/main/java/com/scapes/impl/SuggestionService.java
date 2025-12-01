@@ -2,7 +2,7 @@ package com.scapes.impl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -96,7 +96,7 @@ public class SuggestionService {
                     results = gson.fromJson(response.body(), listType);
                 }
             } catch (Exception e) {
-                logger.error("Keyword Prediction Service offline: " + e.getMessage(), e);
+                logger.error("Keyword Prediction Service error: " + e.getMessage(), e);
             }
             return results;
         });
@@ -111,14 +111,21 @@ public class SuggestionService {
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 200) {
-                    JsonObject json = gson.fromJson(response.body(), JsonObject.class);
-                    if (json.has("recommendations")) {
-                        json.getAsJsonArray("recommendations").forEach(e -> results.add(e.getAsString()));
+                    JsonElement element = gson.fromJson(response.body(), JsonElement.class);
+
+                    if (element.isJsonObject()) {
+                        JsonObject json = element.getAsJsonObject();
+                        if (json.has("recommendations")) {
+                            json.getAsJsonArray("recommendations").forEach(e -> results.add(e.getAsString()));
+                        }
+                    } 
+                    else if (element.isJsonArray()) {
+                        element.getAsJsonArray().forEach(e -> results.add(e.getAsString()));
                     }
                 }
             } catch (Exception e) { 
-                logger.error("Suggestion Service offline: " + e.getMessage(), e);
-             }
+                logger.error("Suggestion Service error: " + e.getMessage(), e);
+            }
             return results;
         });
     }

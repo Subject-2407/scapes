@@ -65,7 +65,6 @@ public class MainController {
     private SystemHandler systemHandler;
 
     // --- MASONRY STATE (ONLINE) ---
-    private HBox masonryContainer;
     private List<VBox> masonryColumns = new ArrayList<>();
     private Map<VBox, Double> columnHeights = new HashMap<>();
 
@@ -416,26 +415,36 @@ public class MainController {
                 suggestionsPopup.hide();
                 return;
             }
+            
+            // request autocomplete (keyword prediction) (light)
+            CompletableFuture<List<String>> predictTask = suggestionService.getPredictions(newVal);
+            
+            // request recommendation (heavy)
+            CompletableFuture<List<String>> recommendTask = suggestionService.getRecommendations(newVal);
 
-            suggestionService.getRecommendations(newVal)
-                .thenAccept(suggestions -> {
+            CompletableFuture.allOf(predictTask, recommendTask).thenRun(() -> {
+                try {
+                    List<String> predictions = predictTask.get();
+                    List<String> recommendations = recommendTask.get();
+
                     Platform.runLater(() -> {
-                        if (suggestions.isEmpty()) {
+                        if (predictions.isEmpty() && recommendations.isEmpty()) {
                             suggestionsPopup.hide();
                         } else {
-                            populateSuggestions(suggestions);
+                            populateCombinedSuggestions(predictions, recommendations);
 
                             double currentWidth = searchField.getWidth();
-                            
                             suggestionsPopup.setMinWidth(currentWidth);
                             suggestionsPopup.setPrefWidth(currentWidth);
                             suggestionsPopup.setMaxWidth(currentWidth);
+
                             if (!suggestionsPopup.isShowing()) {
                                 suggestionsPopup.show(searchField, javafx.geometry.Side.BOTTOM, 0, 0);
                             }
                         }
                     });
-                });
+                } catch (Exception e) { }
+            });
         });
 
         searchField.widthProperty().addListener((obs, oldVal, newVal) -> {
@@ -447,32 +456,55 @@ public class MainController {
         });
     }
 
-    private void populateSuggestions(List<String> suggestions) {
+    private void populateCombinedSuggestions(List<String> predictions, List<String> recommendations) {
         suggestionsPopup.getItems().clear();
 
-        suggestionsPopup.getItems().add(new SeparatorMenuItem());
-
-        for (String suggestion : suggestions) {
-            MenuItem item = new MenuItem(suggestion);
-
-            String textColor = isDarkMode ? "white" : "black";
-            item.setStyle("-fx-text-fill: " + textColor + "; -fx-padding: 5 10;");
-
-            item.setOnAction(e -> {
-                searchField.setText(suggestion);
-                suggestionsPopup.hide();
-                onSearchAction();
-            });
-            
-            suggestionsPopup.getItems().add(item);
+        // keyword prediction
+        for (String text : predictions) {
+            addItemToPopup(text, false);
         }
+
+        // recommendations
+        if (!recommendations.isEmpty()) {
+            recommendations.removeAll(predictions);
+
+            if (!recommendations.isEmpty()) {
+                suggestionsPopup.getItems().add(new SeparatorMenuItem());
+
+                for (String text : recommendations) {
+                    addItemToPopup(text, true);
+                }
+            }
+        }
+    }
+
+    private void addItemToPopup(String text, boolean isRecommendation) {
+        MenuItem item = new MenuItem(text);
+        
+        String textColor = isDarkMode ? "white" : "black";
+        String style = "-fx-text-fill: " + textColor + "; -fx-padding: 8 12;";
+        
+        // italic for recommendation results
+        if (isRecommendation) {
+            style += "-fx-font-style: italic; -fx-opacity: 0.9;";
+        }
+
+        item.setStyle(style);
+
+        item.setOnAction(e -> {
+            searchField.setText(text);
+            suggestionsPopup.hide();
+            onSearchAction();
+        });
+        
+        suggestionsPopup.getItems().add(item);
     }
 
     // pagination load next page
     private void loadNextPage() {
         isLoading = true;
         currentPage++;
-        System.out.println("Loading page: " + currentPage);
+        logger.info("Loading page (from pagination): " + currentPage);
 
         // 1. Tampilkan Skeleton di bawah
         showSkeletons();
