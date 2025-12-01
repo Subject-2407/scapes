@@ -111,6 +111,12 @@
     -fx-background-color: transparent;
 }
 
+.custom-tab-pane .tab .tab-label {
+    -fx-text-fill: -theme-tab-text; 
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+}
+
 .custom-tab-pane .tab {
     -fx-border-color: transparent transparent transparent transparent;
     -fx-border-width: 3px;
