@@ -3,18 +3,25 @@ package com.scapes.controller;
 import com.scapes.core.ProviderManager;
 import com.scapes.core.SystemHandler;
 import com.scapes.model.WallpaperImage;
+import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
+import javafx.scene.Node;
+import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.TilePane;
-import javafx.scene.layout.VBox;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Screen;
+import javafx.util.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.InputStream;
@@ -28,73 +35,63 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-// controller for main UI
-import com.scapes.core.ProviderManager;
-import com.scapes.core.SystemHandler;
-import com.scapes.model.WallpaperImage;
-
-import javafx.animation.ScaleTransition;
-import javafx.application.Platform;
-import javafx.fxml.FXML;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
-import javafx.scene.effect.DropShadow;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Font;
-import javafx.util.Duration;
-
 public class MainController {
     // --- Logger ---
     private static final Logger logger = LoggerFactory.getLogger(MainController.class);
 
     // --- FXML Components ---
+    @FXML private TabPane mainTabPane;
     @FXML private TextField searchField;
     @FXML private ComboBox<String> providerCombo;
-    @FXML private ScrollPane scrollPane;
     @FXML private HBox topBar;
     @FXML private BorderPane rootPane;
     @FXML private Label welcomeLabel;
     @FXML private Label logoLabel;
     @FXML private Button themeBtn;
     @FXML private Button btnMin, btnMax, btnClose;
-    
-    // --- State Variables ---
-    private boolean isDarkMode = true; // Default Dark Mode
 
-    // --- Dependencies & Layout ---
+    // --- Online Tab Components ---
+    @FXML private ScrollPane scrollPane; // Online ScrollPane
+
+    // --- Local Tab Components ---
+    @FXML private ScrollPane localScrollPane; // GANTI TilePane dengan ini di FXML!
+
+    // --- State Variables ---
+    private boolean isDarkMode = true;
+
+    // --- Dependencies ---
     private ProviderManager providerManager;
     private SystemHandler systemHandler;
 
+    // --- MASONRY STATE (ONLINE) ---
+    private HBox masonryContainer;
+    private List<VBox> masonryColumns = new ArrayList<>();
+    private Map<VBox, Double> columnHeights = new HashMap<>();
+
+    // --- MASONRY STATE (LOCAL) ---
+    private HBox localMasonryContainer;
+    private List<VBox> localMasonryColumns = new ArrayList<>();
+    private Map<VBox, Double> localColumnHeights = new HashMap<>();
+
+    // Shared Map (Card -> Column)
+    private Map<VBox, VBox> cardColumnMap = new HashMap<>();
+
     // --- Desktop resolution ---
     private Rectangle2D screenBounds = Screen.getPrimary().getBounds();
-    private double screenWidth = screenBounds.getWidth() * 0.8; // use 80% of screen width
-    private double screenHeight = screenBounds.getHeight() * 0.8; // use 80% of screen height
+    private double screenWidth = screenBounds.getWidth() * 0.8;
+    private double screenHeight = screenBounds.getHeight() * 0.8;
 
     // --- HTTP Client ---
     private static final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(java.time.Duration.ofSeconds(10))
             .build();
-    private HBox masonryContainer;
-    private List<VBox> masonryColumns = new ArrayList<>();
-    private Map<VBox, Double> columnHeights = new HashMap<>();
-    private Map<VBox, VBox> cardColumnMap = new HashMap<>();
+
     private double xOffset = 0;
     private double yOffset = 0;
+
+    private Image iconWhite;
+    private Image iconBlack;
+    private ImageView headerIconView;
 
     public void init(ProviderManager manager, SystemHandler system) {
         this.providerManager = manager;
@@ -110,80 +107,426 @@ public class MainController {
         }
         providerCombo.setOnAction(e -> manager.setActiveProvider(providerCombo.getValue()));
 
-        // Setup Awal
-        applyCurrentTheme(); 
-        
+        applyCurrentTheme();
+
         if (welcomeLabel != null) {
             welcomeLabel.setVisible(true);
             welcomeLabel.setManaged(true);
         }
         scrollPane.setVisible(false);
 
-        setupMasonryLayout();
+        // --- SETUP MASONRY UNTUK KEDUA TAB ---
+        masonryContainer = setupMasonryContainer(scrollPane);
+        localMasonryContainer = setupMasonryContainer(localScrollPane);
 
-        // --- UPDATE BARU: LISTENER STATUS WINDOW (Maximize/Restore Icon) ---
-        // Kita gunakan Platform.runLater agar stage sudah siap sebelum diakses
-        Platform.runLater(() -> {
-            javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
-            
-            // Listener: Setiap kali window berubah ukuran (Maximized/Normal), ganti ikon tombol
-            stage.maximizedProperty().addListener((obs, wasMaximized, isNowMaximized) -> {
-                if (isNowMaximized) {
-                    btnMax.setText("❐"); // Icon Restore (Tumpuk)
-                } else {
-                    btnMax.setText("⬜"); // Icon Maximize (Kotak)
-                }
-            });
+        // Listener Resize untuk Responsive Columns
+        rootPane.widthProperty().addListener((obs, o, n) -> {
+            ensureMasonryColumns(masonryContainer, masonryColumns, columnHeights);
+            ensureMasonryColumns(localMasonryContainer, localMasonryColumns, localColumnHeights);
         });
-        // -------------------------------------------------------------------
+        
+        // Initial Columns
+        Platform.runLater(() -> {
+            ensureMasonryColumns(masonryContainer, masonryColumns, columnHeights);
+            ensureMasonryColumns(localMasonryContainer, localMasonryColumns, localColumnHeights);
+        });
 
-        // logika drag window
+        // Window Controls
+        setupWindowControls();
+    }
+
+    private void setupWindowControls() {
+        Platform.runLater(() -> {
+            if (rootPane.getScene() != null) {
+                javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
+                stage.maximizedProperty().addListener((obs, wasMaximized, isNowMaximized) -> {
+                    if (btnMax != null) btnMax.setText(isNowMaximized ? "❐" : "⬜");
+                });
+            }
+        });
+
         topBar.setOnMousePressed(event -> {
             xOffset = event.getSceneX();
             yOffset = event.getSceneY();
         });
 
-        // Saat mouse ditarik, pindahkan window
         topBar.setOnMouseDragged(event -> {
             javafx.stage.Stage stage = (javafx.stage.Stage) topBar.getScene().getWindow();
-            
-            // Jika window sedang maximized dan ditarik, kembalikan ke normal
-            if (stage.isMaximized()) {
-                stage.setMaximized(false);
-                // Icon akan otomatis berubah karena listener di atas
-            } else {
+            if (stage.isMaximized()) stage.setMaximized(false);
+            else {
                 stage.setX(event.getScreenX() - xOffset);
                 stage.setY(event.getScreenY() - yOffset);
             }
         });
     }
 
-    // --- THEME LOGIC ---
+    // --- TAB LOGIC ---
 
     @FXML
-    private void closeApp() {
-        Platform.exit();
-        System.exit(0);
+    public void onLocalTabSelected() {
+        if (mainTabPane.getSelectionModel().getSelectedIndex() == 1) {
+            loadLocalImages();
+        }
     }
 
     @FXML
-    private void minimizeApp() {
+    public void loadLocalImages() {
+        if (localMasonryContainer == null) return;
+
+        // Reset Local Masonry
+        for (VBox col : localMasonryColumns) col.getChildren().clear();
+        localColumnHeights.replaceAll((k, v) -> 0.0);
+        
+        // Tampilkan loading (opsional, bisa ditambah overlay)
+        logger.info("Loading local images...");
+
+        CompletableFuture.runAsync(() -> {
+            List<WallpaperImage> localFiles = systemHandler.getDownloadedImages();
+            Platform.runLater(() -> {
+                if (localFiles.isEmpty()) {
+                    // Handle empty state if needed
+                } else {
+                    for (WallpaperImage img : localFiles) {
+                        VBox card = createLocalCard(img); // Buat kartu
+                        // Masukkan ke Local Masonry
+                        addCardToMasonry(card, localMasonryColumns, localColumnHeights);
+                    }
+                }
+            });
+        });
+    }
+
+    // --- GENERIC MASONRY LOGIC (Dipakai Online & Local) ---
+
+    private HBox setupMasonryContainer(ScrollPane targetScroll) {
+        if (targetScroll == null) return null;
+        targetScroll.setFitToWidth(true);
+        targetScroll.setPannable(true);
+        targetScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        
+        HBox container = new HBox(16);
+        container.setPadding(new Insets(20, 35, 20, 20));
+        container.setAlignment(Pos.TOP_CENTER);
+        targetScroll.setContent(container);
+        return container;
+    }
+
+    private void ensureMasonryColumns(HBox container, List<VBox> columns, Map<VBox, Double> heights) {
+        if (container == null) return;
+        
+        double w = rootPane.getWidth();
+        int cols = Math.max(1, (int) (w / 260));
+        if (cols == columns.size() && !columns.isEmpty()) return;
+
+        // Simpan kartu yang sudah ada agar tidak hilang saat resize
+        List<VBox> existingCards = new ArrayList<>();
+        for (VBox col : columns) {
+            for (Node node : col.getChildren()) if (node instanceof VBox) existingCards.add((VBox) node);
+        }
+
+        container.getChildren().clear();
+        columns.clear();
+        heights.clear();
+
+        for (int i = 0; i < cols; i++) {
+            VBox col = new VBox(12);
+            col.setFillWidth(true);
+            columns.add(col);
+            heights.put(col, 0.0);
+            container.getChildren().add(col);
+        }
+        
+        // Re-distribute cards
+        for (VBox card : existingCards) addCardToMasonry(card, columns, heights);
+    }
+
+    private void addCardToMasonry(VBox card, List<VBox> columns, Map<VBox, Double> heights) {
+        if (columns.isEmpty()) return; // Should call ensureMasonryColumns first
+        
+        VBox targetCol = columns.get(0);
+        double min = heights.getOrDefault(targetCol, 0.0);
+        
+        for (VBox c : columns) {
+            double h = heights.getOrDefault(c, 0.0);
+            if (h < min) { min = h; targetCol = c; }
+        }
+        
+        targetCol.getChildren().add(card);
+        
+        // Estimasi awal tinggi
+        double est = card.prefHeight(-1);
+        if (est <= 0) est = 300;
+        
+        heights.put(targetCol, heights.getOrDefault(targetCol, 0.0) + est + 12);
+        cardColumnMap.put(card, targetCol);
+    }
+
+    // --- SEARCH LOGIC (ONLINE) ---
+
+    @FXML
+    public void onSearchAction() {
+        String query = searchField.getText();
+        if (query.isEmpty() || providerManager == null) return;
+
+        mainTabPane.getSelectionModel().select(0);
+
+        if (welcomeLabel != null) {
+            welcomeLabel.setVisible(false);
+            welcomeLabel.setManaged(false);
+        }
+        scrollPane.setVisible(true);
+
+        // Clear Online Columns
+        for (VBox col : masonryColumns) col.getChildren().clear();
+        columnHeights.replaceAll((k, v) -> 0.0);
+
+        providerManager.search(query, screenWidth, screenHeight)
+                .thenAccept(this::displayOnlineImages)
+                .exceptionally(ex -> { logger.error("Search failed", ex); return null; });
+    }
+
+    private void displayOnlineImages(List<WallpaperImage> images) {
+        Platform.runLater(() -> {
+            if (images.isEmpty()) return;
+            for (WallpaperImage img : images) {
+                VBox card = createOnlineCard(img);
+                addCardToMasonry(card, masonryColumns, columnHeights);
+            }
+        });
+    }
+
+    public void initAppIcons(Image imgWhite, Image imgBlack) {
+        this.iconWhite = imgWhite;
+        this.iconBlack = imgBlack;
+
+        // 1. Buat ImageView satu kali saja
+        headerIconView = new ImageView();
+        headerIconView.setFitHeight(40);
+        headerIconView.setPreserveRatio(true);
+        headerIconView.setSmooth(true);
+        HBox.setMargin(headerIconView, new Insets(0, 10, 0, 0));
+
+        // 2. Masukkan ke TopBar
+        if (topBar != null) {
+            // Hapus icon lama jika ada (biar ga numpuk kalau init dipanggil ulang)
+            if (!topBar.getChildren().isEmpty() && topBar.getChildren().get(0) instanceof ImageView) {
+                topBar.getChildren().remove(0);
+            }
+            topBar.getChildren().add(0, headerIconView);
+        }
+
+        // 3. Set Icon Awal (Sesuai mode saat ini)
+        updateHeaderIcon();
+    }
+
+    private void updateHeaderIcon() {
+        if (headerIconView == null) return;
+        
+        // Logika: Jika Dark Mode -> Pakai Icon Putih. Jika Light Mode -> Icon Hitam.
+        if (isDarkMode) {
+            if (iconWhite != null) headerIconView.setImage(iconWhite);
+        } else {
+            if (iconBlack != null) headerIconView.setImage(iconBlack);
+        }
+    }
+
+    // --- CARD CREATION (Unified Style) ---
+
+    // Helper untuk hitung lebar kolom saat ini
+    private double getCurrentColWidth() {
+        double w = rootPane.getWidth();
+        int cols = Math.max(1, (int) (w / 260));
+        return (w - 80 - (cols * 16)) / cols;
+    }
+
+    private VBox createOnlineCard(WallpaperImage data) {
+        return createBaseCard(data, false);
+    }
+
+    private VBox createLocalCard(WallpaperImage data) {
+        return createBaseCard(data, true);
+    }
+
+    // Base Method untuk membuat kartu (supaya kodenya tidak duplikat)
+    private VBox createBaseCard(WallpaperImage data, boolean isLocal) {
+        VBox card = new VBox(8);
+        card.setAlignment(Pos.TOP_CENTER);
+        card.setPadding(new Insets(0));
+
+        double colWidth = getCurrentColWidth();
+
+        ImageView imageView = new ImageView();
+        imageView.setFitWidth(colWidth);
+        imageView.setPreserveRatio(true); // Default true agar aman
+        imageView.setSmooth(true);
+
+        Rectangle clip = new Rectangle(colWidth, 10);
+        clip.setArcWidth(24); clip.setArcHeight(24);
+        imageView.setClip(clip);
+
+        // Panggil Loader yang sesuai
+        if (isLocal) {
+            loadLocalImageAsync(data.getThumbnailUrl(), imageView, clip, colWidth);
+        } else {
+            loadImageAsync(data.getThumbnailUrl(), imageView, clip);
+        }
+
+        Label descLabel = new Label(isLocal ? data.getId() : data.getDescription());
+        descLabel.setMaxWidth(colWidth - 10);
+        descLabel.setPadding(new Insets(0, 10, 10, 10));
+
+        setupHoverEffect(card);
+
+        // Click Event (Beda logic antara Online dan Local)
+        card.setOnMouseClicked(e -> {
+            card.setOpacity(0.7);
+            CompletableFuture.runAsync(() -> {
+                try {
+                    if (isLocal) {
+                        // Logic Set Local
+                        logger.info("Setting local wallpaper: " + data.getId());
+                        File file = new File(URI.create(data.getImageUrl()));
+                        if (file.exists()) {
+                            systemHandler.setWallpaper(file);
+                            Platform.runLater(() -> card.setOpacity(1.0));
+                        }
+                    } else {
+                        // Logic Download & Set Online
+                        logger.info("Downloading wallpaper: " + data.getId());
+                        File downloaded = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
+                        if (downloaded != null) {
+                            systemHandler.setWallpaper(downloaded);
+                            Platform.runLater(() -> card.setOpacity(1.0));
+                        }
+                    }
+                } catch (Exception ex) {
+                    logger.error("Error setting wallpaper", ex);
+                    Platform.runLater(() -> card.setOpacity(1.0));
+                }
+            });
+        });
+
+        card.getChildren().addAll(imageView, descLabel);
+        styleCardVBox(card);
+        return card;
+    }
+
+    // --- LOADERS ---
+
+    private void loadImageAsync(String url, ImageView target, Rectangle clip) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", "Mozilla/5.0").GET().build();
+                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                if (response.statusCode() == 200) {
+                    Image image = new Image(response.body());
+                    Platform.runLater(() -> updateImageView(target, image, clip));
+                }
+            } catch (Exception e) { logger.error("Error online load", e); }
+        });
+    }
+
+    private void loadLocalImageAsync(String url, ImageView target, Rectangle clip, double reqWidth) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                double widthToLoad = (reqWidth > 0) ? reqWidth : 300;
+                // Resize saat loading untuk hemat RAM
+                Image image = new Image(url, widthToLoad, 0, true, false);
+                
+                if (image.isError()) return;
+
+                Platform.runLater(() -> updateImageView(target, image, clip));
+            } catch (Exception e) { logger.error("Error local load", e); }
+        });
+    }
+
+    // Logic Update Layout (Dipakai oleh kedua loader)
+    private void updateImageView(ImageView target, Image image, Rectangle clip) {
+        target.setImage(image);
+        
+        // KITA GUNAKAN PRESERVE RATIO AGAR TIDAK MELAR
+        target.setPreserveRatio(true);
+        
+        // Hitung tinggi untuk layout Masonry (bukan untuk paksa ImageView)
+        double w = target.getFitWidth();
+        if (w <= 0) w = 200;
+        
+        double h = (image.getHeight() / image.getWidth()) * w;
+        
+        // Update Clip
+        clip.setWidth(w);
+        clip.setHeight(h);
+        
+        // Update Layout Container (Masonry)
+        if (target.getParent() instanceof VBox) {
+            VBox card = (VBox) target.getParent();
+            card.setMaxWidth(w);
+            
+            // Cari kolom mana kartu ini berada
+            VBox col = cardColumnMap.get(card);
+            
+            // Tentukan kita sedang update map yang mana (Online atau Local)
+            Map<VBox, Double> targetHeightMap = null;
+            if (masonryColumns.contains(col)) targetHeightMap = columnHeights;
+            else if (localMasonryColumns.contains(col)) targetHeightMap = localColumnHeights;
+            
+            if (col != null && targetHeightMap != null) {
+                double sum = 0;
+                for (Node n : col.getChildren()) {
+                    if (n instanceof Region) sum += ((Region) n).prefHeight(-1) + 12;
+                }
+                targetHeightMap.put(col, sum);
+            }
+        }
+    }
+    
+    // --- STYLING METHODS ---
+    
+    private void setupHoverEffect(VBox card) {
+        ScaleTransition stEnter = new ScaleTransition(Duration.millis(150), card);
+        stEnter.setToX(1.02); stEnter.setToY(1.02);
+        ScaleTransition stExit = new ScaleTransition(Duration.millis(150), card);
+        stExit.setToX(1.0); stExit.setToY(1.0);
+
+        card.addEventHandler(MouseEvent.MOUSE_ENTERED, e -> {
+            stExit.stop(); stEnter.playFromStart();
+            card.setStyle("-fx-cursor: hand;");
+        });
+        card.addEventHandler(MouseEvent.MOUSE_EXITED, e -> {
+            stEnter.stop(); stExit.playFromStart();
+        });
+    }
+
+    private void styleCardVBox(VBox card) {
+        String cardBg = isDarkMode ? "#181818" : "#ffffff";
+        String textColor = isDarkMode ? "#dddddd" : "#333333";
+        String shadowCol = isDarkMode ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.15)";
+
+        card.setBackground(new Background(new BackgroundFill(Color.web(cardBg), new CornerRadii(12), Insets.EMPTY)));
+        card.setEffect(new DropShadow(10, 4, 4, Color.web(shadowCol)));
+
+        for (Node n : card.getChildren()) {
+            if (n instanceof Label) ((Label) n).setStyle("-fx-font-size: 12px; -fx-text-fill: " + textColor + ";");
+        }
+    }
+
+    @FXML private void closeApp() { Platform.exit(); System.exit(0); }
+    @FXML private void minimizeApp() { ((javafx.stage.Stage) rootPane.getScene().getWindow()).setIconified(true); }
+    @FXML private void maximizeApp() {
         javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
-        stage.setIconified(true);
+        stage.setMaximized(!stage.isMaximized());
+    }
+    @FXML private void toggleTheme() {
+        isDarkMode = !isDarkMode;
+        applyCurrentTheme();
+        updateExistingCards();
     }
 
-    @FXML
-    private void maximizeApp() {
-        javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
-        stage.setMaximized(!stage.isMaximized()); // Toggle Maximize
-        // Tidak perlu set text manual disini, listener di init() yang akan mengurusnya
-    }
-
-    @FXML
-    private void toggleTheme() {
-        isDarkMode = !isDarkMode; // Switch status
-        applyCurrentTheme();      // Terapkan warna baru ke UI utama
-        updateExistingCards();    // Update warna kartu yang sudah ada
+    private void updateExistingCards() {
+        // Update Masonry Online
+        for (VBox col : masonryColumns) for (Node n : col.getChildren()) if (n instanceof VBox) styleCardVBox((VBox) n);
+        // Update Masonry Local
+        for (VBox col : localMasonryColumns) for (Node n : col.getChildren()) if (n instanceof VBox) styleCardVBox((VBox) n);
     }
 
     private void applyCurrentTheme() {
@@ -266,6 +609,8 @@ public class MainController {
             btnClose.setOnMouseEntered(e -> btnClose.setStyle("-fx-background-color: #e81123; -fx-text-fill: white; -fx-font-size: 14px;"));
             btnClose.setOnMouseExited(e -> btnClose.setStyle(baseStyle));
         }
+
+        updateHeaderIcon();
     }
 
     private void styleComboBox(String bgInput, String textCol, String subText) {
@@ -380,208 +725,6 @@ public class MainController {
                         "-fx-effect: " + shadowEffect + ";"
                     );
                 }
-            }
-        });
-    }
-
-    // Update kartu yang sudah tampil saat tema diganti
-    private void updateExistingCards() {
-        for (VBox col : masonryColumns) {
-            for (Node node : col.getChildren()) {
-                if (node instanceof VBox) {
-                    styleCardVBox((VBox) node);
-                }
-            }
-        }
-    }
-
-    // Fungsi styling single card
-    private void styleCardVBox(VBox card) {
-        String cardBg    = isDarkMode ? "#181818" : "#ffffff";
-        String textColor = isDarkMode ? "#dddddd" : "#333333"; 
-        String shadowCol = isDarkMode ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.15)";
-
-        BackgroundFill fill = new BackgroundFill(Color.web(cardBg), new CornerRadii(12), Insets.EMPTY);
-        card.setBackground(new Background(fill));
-
-        DropShadow shadow = new DropShadow();
-        shadow.setRadius(10); 
-        shadow.setOffsetY(4);
-        shadow.setColor(Color.web(shadowCol));
-        card.setEffect(shadow);
-
-        for (Node n : card.getChildren()) {
-            if (n instanceof Label) {
-                Label lbl = (Label) n;
-                lbl.setStyle("-fx-font-size: 12px; -fx-text-fill: " + textColor + ";");
-            }
-        }
-    }
-
-    // --- MASONRY & SEARCH LOGIC ---
-
-    private void setupMasonryLayout() {
-        rootPane.widthProperty().addListener((obs, o, n) -> ensureMasonryColumns());
-        scrollPane.setFitToWidth(true); scrollPane.setPannable(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        masonryContainer = new HBox(16);
-        masonryContainer.setPadding(new Insets(20, 35, 20, 20));
-        masonryContainer.setAlignment(Pos.TOP_CENTER);
-        scrollPane.setContent(masonryContainer);
-        ensureMasonryColumns();
-    }
-
-    private void ensureMasonryColumns() {
-        double w = rootPane.getWidth();
-        int cols = Math.max(1, (int) (w / 260));
-        if (cols == masonryColumns.size() && !masonryColumns.isEmpty()) return;
-
-        List<VBox> existingCards = new ArrayList<>();
-        for (VBox col : masonryColumns) {
-            for (Node node : col.getChildren()) if (node instanceof VBox) existingCards.add((VBox) node);
-        }
-
-        masonryContainer.getChildren().clear();
-        masonryColumns.clear();
-        columnHeights.clear();
-
-        for (int i = 0; i < cols; i++) {
-            VBox col = new VBox(12);
-            col.setFillWidth(true);
-            masonryColumns.add(col);
-            columnHeights.put(col, 0.0);
-            masonryContainer.getChildren().add(col);
-        }
-        for (VBox card : existingCards) addCardToMasonry(card);
-    }
-
-    @FXML
-    public void onSearchAction() {
-        String query = searchField.getText();
-        if (query.isEmpty() || providerManager == null) return;
-        
-        if (welcomeLabel != null) {
-            welcomeLabel.setVisible(false);
-            welcomeLabel.setManaged(false);
-        }
-        scrollPane.setVisible(true);
-
-        for(VBox col : masonryColumns) col.getChildren().clear();
-        columnHeights.replaceAll((k, v) -> 0.0);
-
-        providerManager.search(query, screenWidth, screenHeight)
-            .thenAccept(this::displayImages)
-            .exceptionally(ex -> { return null; });
-    }
-
-    private void displayImages(List<WallpaperImage> images) {
-        Platform.runLater(() -> {
-            if (images.isEmpty()) return;
-            for (WallpaperImage img : images) {
-                VBox card = createCard(img);
-                addCardToMasonry(card);
-            }
-        });
-    }
-
-    private void addCardToMasonry(VBox card) {
-        if (masonryColumns.isEmpty()) ensureMasonryColumns();
-        VBox targetCol = masonryColumns.get(0);
-        double min = columnHeights.getOrDefault(targetCol, 0.0);
-        for (VBox c : masonryColumns) {
-            double h = columnHeights.getOrDefault(c, 0.0);
-            if (h < min) { min = h; targetCol = c; }
-        }
-        targetCol.getChildren().add(card);
-        double est = card.prefHeight(-1); 
-        if (est <= 0) est = 300; 
-        columnHeights.put(targetCol, columnHeights.getOrDefault(targetCol, 0.0) + est + 12);
-        cardColumnMap.put(card, targetCol);
-    }
-
-    private VBox createCard(WallpaperImage data) {
-        VBox card = new VBox(8);
-        card.setAlignment(Pos.TOP_CENTER);
-        card.setPadding(new Insets(0));
-
-        // Setup Gambar
-        ImageView imageView = new ImageView();
-        double w = rootPane.getWidth();
-        int cols = Math.max(1, (int) (w / 260));
-        double colWidth = (w - 80 - (cols * 16)) / cols;
-        
-        imageView.setFitWidth(colWidth); 
-        imageView.setPreserveRatio(true);
-        imageView.setSmooth(true);
-
-        Rectangle clip = new Rectangle(colWidth, 10);
-        clip.setArcWidth(24); 
-        clip.setArcHeight(24);
-        imageView.setClip(clip);
-
-        loadImageAsync(data.getThumbnailUrl(), imageView, clip);
-
-        // Setup Label
-        Label descLabel = new Label(data.getDescription());
-        descLabel.setMaxWidth(colWidth - 10);
-        descLabel.setPadding(new Insets(0, 10, 10, 10));
-        
-        // Setup Hover Effect
-        ScaleTransition stEnter = new ScaleTransition(Duration.millis(150), card);
-        stEnter.setToX(1.02); stEnter.setToY(1.02);
-        ScaleTransition stExit = new ScaleTransition(Duration.millis(150), card);
-        stExit.setToX(1.0); stExit.setToY(1.0);
-
-        card.addEventHandler(MouseEvent.MOUSE_ENTERED, e -> {
-            stExit.stop(); stEnter.playFromStart();
-            card.setStyle("-fx-cursor: hand;");
-        });
-        card.addEventHandler(MouseEvent.MOUSE_EXITED, e -> {
-            stEnter.stop(); stExit.playFromStart();
-        });
-        card.setOnMouseClicked(e -> {
-            File downloadedImage = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
-
-            systemHandler.setWallpaper(downloadedImage);
-        });
-
-        // MASUKKAN ELEMEN KE KARTU DULU
-        card.getChildren().addAll(imageView, descLabel);
-
-        // --- PENTING: PANGGIL STYLING DI AKHIR ---
-        styleCardVBox(card); 
-
-        return card;
-    }
-
-    private void loadImageAsync(String url, ImageView target, Rectangle clip) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("User-Agent", "Mozilla/5.0").GET().build();
-                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() == 200) {
-                    Image image = new Image(response.body());   
-                    Platform.runLater(() -> {
-                        target.setImage(image);
-                        double w = target.getFitWidth(); if (w <= 0) w = 200;
-                        double h = (image.getHeight() / image.getWidth()) * w;
-                        clip.setWidth(w); clip.setHeight(h);
-                        if (target.getParent() instanceof VBox) {
-                            VBox card = (VBox) target.getParent();
-                            card.setMaxWidth(w);
-                            VBox col = cardColumnMap.get(card);
-                            if (col != null) {
-                                double sum = 0;
-                                for (Node n : col.getChildren()) sum += ((Region) n).prefHeight(-1) + 12;
-                                columnHeights.put(col, sum);
-                            }
-                        }
-                    });
-                } else {
-                    logger.error("Failed to load thumbnail: " + url + " (Status: " + response.statusCode() + ")");
-                }
-            } catch (Exception e) {
-                logger.error("Error loading thumbnail: " + url, e);
             }
         });
     }

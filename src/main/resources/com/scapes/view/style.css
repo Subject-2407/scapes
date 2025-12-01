@@ -105,3 +105,33 @@
     -fx-max-height: 0;
     -fx-pref-height: 0;
 }
+
+/* Style TabPane agar menyatu dengan background */
+.custom-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.custom-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #aaaaaa;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 20;
+}
+
+.custom-tab-pane .tab:selected {
+    -fx-border-color: transparent transparent #0078d7 transparent; /* Garis biru di bawah tab aktif */
+    -fx-border-width: 3px;
+    -fx-text-fill: white;
+}
+
+.custom-tab-pane .tab:hover {
+    -fx-background-color: #333333;
+    -fx-cursor: hand;
+}
+
+/* Biar content area transparan */
+.custom-tab-pane .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}

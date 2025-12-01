@@ -41,11 +41,17 @@ public class WindowsSystemHandler implements SystemHandler {
     @Override
     public File downloadImage(String url, String filename) {
         try {
-            logger.info("Downloading image from: " + url);
-            
-            if (!Files.exists(downloadPath)) Files.createDirectories(downloadPath);
             String safeFilename = filename.replaceAll("[^a-zA-Z0-9.-]", "_");
             Path destination = downloadPath.resolve(safeFilename);
+            File file = destination.toFile();
+
+            if (file.exists() && file.length() > 0) {
+                logger.info("Requested image is already cached, skipped downloading: " + safeFilename);
+                return file;
+            }
+
+            logger.info("Downloading image from: " + url);
+            if (!Files.exists(downloadPath)) Files.createDirectories(downloadPath);
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest req = HttpRequest.newBuilder()
@@ -55,10 +61,9 @@ public class WindowsSystemHandler implements SystemHandler {
                     .build();
             
             // download image as stream
-            InputStream stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream()).body();
-            // save to file
-            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
-            stream.close();
+            try (InputStream stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream()).body()) {
+                Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
             // give some time for file system to register the new file
             Thread.sleep(100); 
 

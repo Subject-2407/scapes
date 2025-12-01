@@ -1,5 +1,7 @@
 package com.scapes;
 
+import java.io.InputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +25,8 @@ public class MainApp extends Application {
     private static final Logger logger = LoggerFactory.getLogger(MainApp.class);
     private static final String APP_TITLE = "Scapes";
     private static final String APP_ICON = "/com/scapes/icon/scapes.png";
+    private static final String APP_ICON_DARK = "/com/scapes/icon/scapes_light.png";
+    private static final String APP_ICON_LIGHT = "/com/scapes/icon/scapes_dark.png";
     private static final String MAIN_VIEW_FXML = "/com/scapes/view/main_view.fxml";
     private static final String APP_STYLE = "/com/scapes/view/style.css";
 
@@ -56,6 +60,7 @@ public class MainApp extends Application {
         FXMLLoader loader = new FXMLLoader(getClass().getResource(MAIN_VIEW_FXML));
         String css = this.getClass().getResource(APP_STYLE).toExternalForm();
         Scene scene = new Scene(loader.load());
+        // favicon
         Image appIcon = new Image(getClass().getResourceAsStream(APP_ICON));
         if (appIcon != null) {
             stage.getIcons().add(appIcon);
@@ -74,6 +79,27 @@ public class MainApp extends Application {
         logger.info("Initializing main controller...");
         MainController controller = loader.getController();
         controller.init(manager, system); 
+
+        // load app icon for app top bar
+        try {
+            Image imgWhite = null;
+            Image imgBlack = null;
+
+            InputStream streamWhite = getClass().getResourceAsStream(APP_ICON_LIGHT);
+            if (streamWhite != null) imgWhite = new Image(streamWhite);
+ 
+            InputStream streamBlack = getClass().getResourceAsStream(APP_ICON_DARK);
+            if (streamBlack != null) imgBlack = new Image(streamBlack);
+
+            if (imgWhite != null && imgBlack != null) {
+                controller.initAppIcons(imgWhite, imgBlack);
+            } else {
+                logger.error("Failed loading app icons.");
+            }
+
+        } catch (Exception e) {
+            logger.error("Error loading app icons: ", e);
+        }
 
         // show the stage
         // set stage min size with respecting current scene size
