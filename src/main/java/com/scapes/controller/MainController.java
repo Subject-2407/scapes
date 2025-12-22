@@ -226,7 +226,37 @@ public class MainController {
                 runDelayed(() -> buildCategorySection("Automotive", "Car", false), 600);
                 runDelayed(() -> buildCategorySection("Anime & Japan", "Anime", false), 800);
                 runDelayed(() -> buildCategorySection("Minimalist", "Minimalist", false), 1000);
+                
+                // Preload popular categories in background for better performance
+                preloadPopularCategories();
             });
+        });
+    }
+    
+    /**
+     * Preloads thumbnails for popular categories in the background
+     */
+    private void preloadPopularCategories() {
+        List<String> popularQueries = List.of("Nature", "Sky", "Car", "Anime", "Minimalist", "Mountain", "Ocean", "Forest");
+        
+        // Preload thumbnails for popular categories asynchronously
+        popularQueries.forEach(query -> {
+            providerManager.search(query, 1, screenWidth, 400)
+                .thenAccept(images -> {
+                    if (!images.isEmpty()) {
+                        // Preload first few thumbnails for each category
+                        List<String> thumbnailUrls = images.stream()
+                            .limit(5)
+                            .map(WallpaperImage::getThumbnailUrl)
+                            .toList();
+                        
+                        preloadThumbnailsInParallel(thumbnailUrls);
+                    }
+                })
+                .exceptionally(ex -> {
+                    logger.debug("Failed to preload category: {}", query);
+                    return null;
+                });
         });
     }
 
@@ -292,14 +322,16 @@ public class MainController {
                     contentBox.getChildren().clear();
                     
                     int limit = Math.min(images.size(), 10);
-                    for (int i = 0; i < limit; i++) {
-                        WallpaperImage img = images.get(i);
-
-                        boolean isFeatured = isTrendingSection && (i == 0);
-                        
-                        VBox card = createHorizontalCard(img, isFeatured, isTrendingSection);
-                        contentBox.getChildren().add(card);
-                    }
+                    List<WallpaperImage> limitedImages = images.subList(0, limit);
+                    
+                    // Create horizontal cards in parallel for better performance
+                    createHorizontalCardsInParallel(limitedImages, isTrendingSection).thenAccept(cards -> {
+                        Platform.runLater(() -> {
+                            for (VBox card : cards) {
+                                contentBox.getChildren().add(card);
+                            }
+                        });
+                    });
                 });
             });
     }
@@ -376,10 +408,18 @@ public class MainController {
 
         card.setOnMouseClicked(e -> {
              card.setOpacity(0.5);
-             CompletableFuture.runAsync(() -> {
-                 File dl = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
-                 if(dl != null) { systemHandler.setWallpaper(dl); Platform.runLater(() -> card.setOpacity(1.0)); }
-             });
+             systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg")
+                 .thenAccept(dl -> {
+                     if(dl != null) { 
+                         systemHandler.setWallpaper(dl); 
+                         Platform.runLater(() -> card.setOpacity(1.0)); 
+                     }
+                 })
+                 .exceptionally(ex -> {
+                     logger.error("Error downloading wallpaper", ex);
+                     Platform.runLater(() -> card.setOpacity(1.0));
+                     return null;
+                 });
         });
 
         card.getChildren().addAll(imageView, descLabel);
@@ -723,10 +763,14 @@ public class MainController {
                     if (images.isEmpty()) {
                         // Tampilkan pesan "Tidak ditemukan"
                     } else {
-                        for (WallpaperImage img : images) {
-                            VBox card = createMasonryCard(img);
-                            addCardToMasonry(card, masonryColumns, columnHeights);
-                        }
+                        // Create cards in parallel for better performance
+                        createCardsInParallel(images).thenAccept(cards -> {
+                            Platform.runLater(() -> {
+                                for (VBox card : cards) {
+                                    addCardToMasonry(card, masonryColumns, columnHeights);
+                                }
+                            });
+                        });
                     }
                     isLoading = false;
                 });
@@ -904,11 +948,18 @@ public class MainController {
                     } else {
                         // Logic Download & Set Online
                         logger.info("Downloading wallpaper: " + data.getId());
-                        File downloaded = systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg");
-                        if (downloaded != null) {
-                            systemHandler.setWallpaper(downloaded);
-                            Platform.runLater(() -> card.setOpacity(1.0));
-                        }
+                        systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg")
+                            .thenAccept(downloaded -> {
+                                if (downloaded != null) {
+                                    systemHandler.setWallpaper(downloaded);
+                                    Platform.runLater(() -> card.setOpacity(1.0));
+                                }
+                            })
+                            .exceptionally(ex -> {
+                                logger.error("Error downloading wallpaper", ex);
+                                Platform.runLater(() -> card.setOpacity(1.0));
+                                return null;
+                            });
                     }
                 } catch (Exception ex) {
                     logger.error("Error setting wallpaper", ex);
@@ -1018,6 +1069,92 @@ public class MainController {
         for (Node n : card.getChildren()) {
             if (n instanceof Label) ((Label) n).setStyle("-fx-font-size: 12px; -fx-text-fill: " + textColor + ";");
         }
+    }
+
+    // --- PARALLEL CARD CREATION FOR PERFORMANCE ---
+    
+    /**
+     * Creates multiple masonry cards in parallel to improve UI responsiveness
+     * @param images List of wallpaper images
+     * @return CompletableFuture with list of created cards
+     */
+    private CompletableFuture<List<VBox>> createCardsInParallel(List<WallpaperImage> images) {
+        if (images == null || images.isEmpty()) {
+            return CompletableFuture.completedFuture(new ArrayList<>());
+        }
+        
+        // Create cards in parallel
+        List<CompletableFuture<VBox>> cardFutures = images.stream()
+            .map(img -> CompletableFuture.supplyAsync(() -> createMasonryCard(img)))
+            .toList();
+        
+        // Combine all futures into one
+        return CompletableFuture.allOf(cardFutures.toArray(new CompletableFuture[0]))
+            .thenApply(v -> cardFutures.stream()
+                .map(CompletableFuture::join)
+                .toList());
+    }
+    
+    /**
+     * Creates multiple horizontal cards in parallel for category sections
+     * @param images List of wallpaper images
+     * @param isTrendingSection Whether this is the trending section
+     * @return CompletableFuture with list of created cards
+     */
+    private CompletableFuture<List<VBox>> createHorizontalCardsInParallel(List<WallpaperImage> images, boolean isTrendingSection) {
+        if (images == null || images.isEmpty()) {
+            return CompletableFuture.completedFuture(new ArrayList<>());
+        }
+        
+        // Create cards in parallel
+        List<CompletableFuture<VBox>> cardFutures = new ArrayList<>();
+        for (int i = 0; i < images.size(); i++) {
+            WallpaperImage img = images.get(i);
+            boolean isFeatured = isTrendingSection && (i == 0);
+            cardFutures.add(CompletableFuture.supplyAsync(() -> createHorizontalCard(img, isFeatured, isTrendingSection)));
+        }
+        
+        // Combine all futures into one
+        return CompletableFuture.allOf(cardFutures.toArray(new CompletableFuture[0]))
+            .thenApply(v -> cardFutures.stream()
+                .map(CompletableFuture::join)
+                .toList());
+    }
+    
+    /**
+     * Preloads multiple thumbnails in parallel
+     */
+    private void preloadThumbnailsInParallel(List<String> urls) {
+        if (urls == null || urls.isEmpty()) return;
+        
+        List<CompletableFuture<Void>> preloadTasks = urls.stream()
+            .map(url -> CompletableFuture.runAsync(() -> {
+                try {
+                    HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .GET()
+                        .build();
+                    HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                    if (response.statusCode() == 200) {
+                        // Just consume the stream to cache the thumbnail
+                        try (InputStream stream = response.body()) {
+                            byte[] buffer = new byte[4096];
+                            while (stream.read(buffer) != -1) {
+                                // Consume data
+                            }
+                        }
+                        logger.trace("Preloaded thumbnail: {}", url);
+                    }
+                } catch (Exception e) {
+                    logger.trace("Failed to preload thumbnail: {}", url);
+                }
+            }))
+            .toList();
+        
+        // Wait for all preloads to complete (fire and forget)
+        CompletableFuture.allOf(preloadTasks.toArray(new CompletableFuture[0]))
+            .thenRun(() -> logger.debug("Thumbnail preloading completed for {} images", urls.size()));
     }
 
     @FXML private void closeApp() { Platform.exit(); System.exit(0); }
