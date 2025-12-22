@@ -80,7 +80,7 @@ public class MainApp extends Application {
         // inject dependencies into controller
         logger.info("Initializing main controller...");
         MainController controller = loader.getController();
-        controller.init(manager, system); 
+        controller.init(manager, system, scene); 
 
         // load app icon for app top bar
         try {

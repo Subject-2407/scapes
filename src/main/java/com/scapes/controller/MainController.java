@@ -4,6 +4,7 @@ import com.scapes.core.ProviderManager;
 import com.scapes.core.SystemHandler;
 import com.scapes.impl.SuggestionService;
 import com.scapes.model.WallpaperImage;
+import com.scapes.util.Snackbar;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -63,6 +64,7 @@ public class MainController {
     // --- Dependencies ---
     private ProviderManager providerManager;
     private SystemHandler systemHandler;
+    private javafx.scene.Scene scene;
 
     // --- MASONRY STATE (ONLINE) ---
     private List<VBox> masonryColumns = new ArrayList<>();
@@ -110,9 +112,10 @@ public class MainController {
     private VBox exploreContainer;
     private HBox searchMasonry;
 
-    public void init(ProviderManager manager, SystemHandler system) {
+    public void init(ProviderManager manager, SystemHandler system, javafx.scene.Scene scene) {
         this.providerManager = manager;
         this.systemHandler = system;
+        this.scene = scene;
 
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal == null || newVal.trim().isEmpty()) {
@@ -408,15 +411,23 @@ public class MainController {
 
         card.setOnMouseClicked(e -> {
              card.setOpacity(0.5);
+             Snackbar.showDownloading(scene);
              systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg")
                  .thenAccept(dl -> {
-                     if(dl != null) { 
-                         systemHandler.setWallpaper(dl); 
-                         Platform.runLater(() -> card.setOpacity(1.0)); 
+                     if(dl != null) {
+                         Snackbar.showDownloadSuccess(scene);
+                         boolean setSuccess = systemHandler.setWallpaper(dl);
+                         if (setSuccess) {
+                             Snackbar.showWallpaperSetSuccess(scene);
+                         } else {
+                             Snackbar.showWallpaperSetFailed(scene);
+                         }
+                         Platform.runLater(() -> card.setOpacity(1.0));
                      }
                  })
                  .exceptionally(ex -> {
                      logger.error("Error downloading wallpaper", ex);
+                     Snackbar.showDownloadFailed(scene);
                      Platform.runLater(() -> card.setOpacity(1.0));
                      return null;
                  });
@@ -942,21 +953,34 @@ public class MainController {
                         logger.info("Setting local wallpaper: " + data.getId());
                         File file = new File(URI.create(data.getImageUrl()));
                         if (file.exists()) {
-                            systemHandler.setWallpaper(file);
+                            boolean setSuccess = systemHandler.setWallpaper(file);
+                            if (setSuccess) {
+                                Snackbar.showWallpaperSetSuccess(scene);
+                            } else {
+                                Snackbar.showWallpaperSetFailed(scene);
+                            }
                             Platform.runLater(() -> card.setOpacity(1.0));
                         }
                     } else {
                         // Logic Download & Set Online
                         logger.info("Downloading wallpaper: " + data.getId());
+                        Snackbar.showDownloading(scene);
                         systemHandler.downloadImage(data.getImageUrl(), data.getId() + ".jpg")
                             .thenAccept(downloaded -> {
                                 if (downloaded != null) {
-                                    systemHandler.setWallpaper(downloaded);
+                                    Snackbar.showDownloadSuccess(scene);
+                                    boolean setSuccess = systemHandler.setWallpaper(downloaded);
+                                    if (setSuccess) {
+                                        Snackbar.showWallpaperSetSuccess(scene);
+                                    } else {
+                                        Snackbar.showWallpaperSetFailed(scene);
+                                    }
                                     Platform.runLater(() -> card.setOpacity(1.0));
                                 }
                             })
                             .exceptionally(ex -> {
                                 logger.error("Error downloading wallpaper", ex);
+                                Snackbar.showDownloadFailed(scene);
                                 Platform.runLater(() -> card.setOpacity(1.0));
                                 return null;
                             });
